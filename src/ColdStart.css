@@ -1,0 +1,34 @@
+.profile-setup{padding:24px;margin-bottom:24px}
+.profile-setup h2{font-size:23px;margin:6px 0 10px}
+.profile-setup p{font-size:15px;line-height:1.6;color:var(--muted);margin:6px 0}
+.profile-setup ol{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:0;margin:18px 0;list-style:none}
+.profile-setup li{display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:13px;border:1px solid var(--line);border-radius:8px}
+.profile-setup li.done>span{color:var(--success)}
+.profile-setup li a{flex:1;font-size:15px;font-weight:500;text-decoration:underline;text-underline-offset:3px}
+.profile-setup li small{font-size:12px;color:var(--muted)}
+.profile-preferences{border:1px solid var(--line);border-radius:8px;padding:14px;margin:0;min-width:0}
+.profile-preferences legend{font-weight:600;padding:0 5px;font-size:15px}
+.profile-preferences>p{color:var(--muted);font-size:14px;margin:0 0 12px}
+.preference-options{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.preference-options label{display:flex!important;align-items:center;gap:8px;font-size:14px!important;line-height:1.4}
+.preference-options input{width:17px!important;height:17px;margin:0!important;flex:none}
+#profile-intro,#profile-skills,#profile-preferences,#profile-samples{scroll-margin-top:24px}
+.profile-form-group{display:grid;gap:12px}
+.recommended-projects{margin-bottom:26px;overflow:hidden}
+.recommended-projects .panel-heading{gap:16px;flex-wrap:wrap;align-items:center}
+.recommended-projects .panel-heading p:not(.eyebrow){font-size:14px;color:var(--muted);margin:8px 0 0;line-height:1.6;max-width:620px}
+.recommended-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;padding:20px 24px}
+.recommended-card{display:flex;flex-direction:column;gap:11px;padding:18px;border:1px solid var(--line);border-radius:10px;min-width:0}
+.recommended-card h3{margin:0;font-size:18px;overflow-wrap:anywhere}
+.recommended-card>small{font-size:13px;color:var(--muted)}
+.recommendation-reason{font-size:14px;line-height:1.6;margin:0;color:var(--accent-ink)}
+.recommended-brief{font-size:14px;color:var(--text-soft);line-height:1.6;margin:0;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.recommended-card button{margin-top:auto;min-height:42px;align-self:flex-start;max-width:100%}
+.recommendation-state{padding:20px 24px;color:var(--muted);font-size:15px;line-height:1.6}
+.recommendation-state h3{font-size:17px;color:var(--ink)}
+.setup-nudge{font-size:14px;line-height:1.6;background:var(--paper);padding:12px 24px;margin:0;color:var(--text-soft)}
+.setup-nudge a{text-decoration:underline;text-underline-offset:3px}
+.recommendation-pagination{display:flex;justify-content:flex-end;align-items:center;gap:12px;flex-wrap:wrap;padding:0 24px 20px;font-size:14px}
+.new-talent-note{margin:0 24px 16px;padding:12px;background:var(--paper);border-radius:8px;font-size:14px;line-height:1.6;color:var(--text-soft)}
+.new-talent-label{display:inline-block;color:var(--accent-ink);font-size:13px;font-weight:500;margin-top:6px}
+@media(max-width:640px){.profile-setup{padding:18px}.profile-setup ol,.preference-options,.recommended-grid{grid-template-columns:1fr}.recommended-grid{padding:16px}.recommendation-pagination{justify-content:space-between;padding:0 16px 16px}.profile-setup li a{min-width:140px}.new-talent-note{margin:0 16px 16px}}

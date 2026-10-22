@@ -29,3 +29,31 @@ test("freelancer can save portfolio links, availability and an optional rate", a
   expect(saved.availability).toBe("limited");
   expect(saved.hourlyRate).toBe(90);
 });
+
+test("a newcomer can choose work fields and save with zero experience and no sample", async () => {
+  api.mockReset();
+  const setup = { ready: false, completed: 0, total: 3, steps: [{ key: "skills", label: "Add your skills", done: false }] };
+  api.mockResolvedValueOnce({ profile: {}, trust: { score: null }, setup }).mockImplementation((path, options) => Promise.resolve({ profile: JSON.parse(options.body), setup: { ...setup, ready: true, completed: 3 } }));
+  render(<MemoryRouter><FreelancerProfile /></MemoryRouter>);
+  await screen.findByRole("region", { name: "Profile setup guide" });
+  expect(screen.getByText("No score yet")).toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText("Professional headline"), { target: { value: "React developer" } });
+  fireEvent.change(screen.getByLabelText("About you"), { target: { value: "I build responsive dashboards and interfaces." } });
+  fireEvent.change(screen.getByLabelText(/Skills Separate each skill/), { target: { value: "React" } });
+  fireEvent.click(screen.getByRole("checkbox", { name: "Web Development", exact: true }));
+  fireEvent.click(screen.getByRole("button", { name: "Save profile ↗", exact: true }));
+  await screen.findByText("Your profile is ready to explore work");
+  const body = JSON.parse(api.mock.calls.find(call => call[1]?.method === "PUT")[1].body);
+  expect(body.preferredCategories).toEqual(["Web Development"]);
+  expect(body.experienceYears).toBe(0); expect(body.portfolioItems).toEqual([]); expect(body.discoverable).toBe(false);
+});
+
+test("a failed profile load cannot save an empty replacement", async () => {
+  api.mockReset();
+  api.mockRejectedValueOnce(new Error("Connection interrupted")).mockResolvedValue({ profile: { headline: "Saved headline" } });
+  render(<MemoryRouter><FreelancerProfile /></MemoryRouter>);
+  fireEvent.click(await screen.findByRole("button", { name: "Retry profile" }));
+  expect(screen.queryByRole("button", { name: "Save profile ↗" })).not.toBeInTheDocument();
+  expect(await screen.findByLabelText("Professional headline")).toHaveValue("Saved headline");
+  expect(api.mock.calls.every(call => !call[1]?.method)).toBe(true);
+});

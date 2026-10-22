@@ -145,4 +145,4 @@ function matchApplicant(requiredSkills = [], profile = {}, trust = { score: null
   };
 }
 
-module.exports = { trustFromProjects, matchApplicant };
+module.exports = { trustFromProjects, matchApplicant, normalizeSkill, skillAliases };

@@ -42,6 +42,7 @@ const userSchema = new mongoose.Schema(
       headline: { type: String, default: "" },
       bio: { type: String, default: "" },
       skills: { type: [String], default: [] },
+      preferredCategories: { type: [String], enum: require("../projectCategories").JOB_CATEGORIES, default: [] },
       experienceYears: { type: Number, default: 0 },
       portfolioUrl: { type: String, default: "" },
       portfolioItems: [{

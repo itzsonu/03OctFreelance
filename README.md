@@ -68,6 +68,8 @@ The integration suites use uniquely named temporary databases and clean up only 
 
 ## Research and deployment status
 
+Cold-start phases 1 and 2 add guided freelancer setup, preferred work fields, explainable profile-based project suggestions and a client filter for talent without approved platform work. Newcomers need no reviews to use recommendations; portfolio samples remain separate from verified history and visibility stays opt-in. See [COLD_START.md](COLD_START.md) for implemented behavior and the remaining pilot/research evaluation.
+
 Clients can save incomplete project briefs to their account, resume or delete them from **Saved drafts**, and publish after full validation. Drafts are private and do not appear in the marketplace. Saving is explicit; use **Save draft and close** before leaving. A stale tab cannot overwrite a newer saved draft. Publication retries recover the same project.
 
 **Account settings → Email alerts** contains separate opt-in preferences for proposals, offers, submissions and revisions. In-app notifications remain available. Event delivery is disabled by default and awaits the final email setup; see [EMAIL_SETUP.md](EMAIL_SETUP.md). The durable queue and mocked delivery checks are implemented; real inbox delivery has not been verified.

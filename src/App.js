@@ -42,6 +42,7 @@ import "./AccountSettings.css";
 
 import "./Typography.css";
 import "./ProposalExperience.css";
+import "./ColdStart.css";
 
 function App() {
   return (

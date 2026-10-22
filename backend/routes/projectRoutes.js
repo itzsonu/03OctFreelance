@@ -21,6 +21,7 @@ const { publicStages, ownerLookup, hiringAvailable } = require("../moderation");
 const { readSession } = require("../sessions");
 
 const router = express.Router();
+router.use(require("./recommendationRoutes"));
 router.use(require("./projectLifecycleRoutes"));
 router.use(require("./projectChangeRoutes"));
 const withAnalytics = project => ({ ...(project.toObject ? project.toObject() : project), insights: projectInsights(project), outlook: projectOutlook(project) });

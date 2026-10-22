@@ -4,14 +4,15 @@ const User = require("../models/User");
 const Project = require("../models/Project");
 const Review = require("../models/Review");
 const { protect, allowRoles } = require("../middleware/authMiddleware");
-const { trustFromProjects } = require("../scoring");
+const { trustFromProjects, normalizeSkill } = require("../scoring");
+const { historyStages, mongoSkill } = require("../coldStart");
 
 const router = express.Router();
 router.use(protect, allowRoles("client"));
 
 router.get("/", async (req, res) => {
   try {
-    const allowedParams = new Set(["q", "skill", "availability", "minExperience", "maxExperience", "page", "pageSize", "sort"]);
+    const allowedParams = new Set(["q", "skill", "availability", "minExperience", "maxExperience", "page", "pageSize", "sort", "history"]);
     if (Object.keys(req.query).some(key => !allowedParams.has(key))) throw new Error("Invalid query parameter");
     const stringParam = (key, maxLength) => {
       const value = req.query[key];
@@ -22,6 +23,8 @@ router.get("/", async (req, res) => {
     const query = stringParam("q", 80);
     const skill = stringParam("skill", 40);
     const availability = stringParam("availability", 20);
+    const history = stringParam("history", 12);
+    if (history && !["none", "recorded"].includes(history)) throw new Error("Invalid work history filter");
     const numberParam = key => {
       const value = req.query[key];
       if (value === undefined || value === "") return null;
@@ -46,15 +49,16 @@ router.get("/", async (req, res) => {
       const expression = new RegExp(escape(query), "i");
       filter.$or = [{ name: expression }, { "profile.headline": expression }, { "profile.bio": expression }, { "profile.skills": expression }];
     }
-    if (skill) filter["profile.skills"] = new RegExp(`^${escape(skill)}$`, "i");
+    if (skill) filter.$expr = { $in: [{ $literal: normalizeSkill(skill) }, { $map: { input: { $ifNull: ["$profile.skills", []] }, as: "skill", in: mongoSkill("$$skill") } }] };
     if (availability) filter["profile.availability"] = availability === "available" ? { $in: ["available", null] } : availability;
     if (minExperience !== null || maxExperience !== null) filter["profile.experienceYears"] = { ...(minExperience !== null ? { $gte: minExperience } : {}), ...(maxExperience !== null ? { $lte: maxExperience } : {}) };
     const sortOptions = { newest: { createdAt: -1 }, name: { name: 1 }, "experience-high": { "profile.experienceYears": -1 }, "experience-low": { "profile.experienceYears": 1 }, "rate-high": { "profile.hourlyRate": -1 }, "rate-low": { "profile.hourlyRate": 1 } };
-    const [users, total] = await Promise.all([
-      User.find(filter).select("name profile.headline profile.bio profile.skills profile.experienceYears profile.portfolioUrl profile.portfolioItems profile.availability profile.hourlyRate")
-        .sort(sortOptions[sort]).skip((page - 1) * pageSize).limit(pageSize).lean(),
-      User.countDocuments(filter),
-    ]);
+    const [result] = await User.aggregate([{ $match: filter }, ...historyStages(history), { $facet: {
+      users: [{ $sort: { ...sortOptions[sort], _id: sort === "newest" ? -1 : 1 } }, { $skip: (page - 1) * pageSize }, { $limit: pageSize }, { $project: { name: 1, "profile.headline": 1, "profile.bio": 1, "profile.skills": 1, "profile.experienceYears": 1, "profile.portfolioUrl": 1, "profile.portfolioItems": 1, "profile.availability": 1, "profile.hourlyRate": 1 } }],
+      total: [{ $count: "count" }],
+    } }]);
+    const users = result.users;
+    const total = result.total[0]?.count || 0;
     const work = users.length ? await Project.find({ freelancer: { $in: users.map(user => user._id) } })
       .select("freelancer client status milestones.status milestones.revisionCount").lean() : [];
     const byFreelancer = new Map();

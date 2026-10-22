@@ -2,6 +2,8 @@ const express = require("express");
 const User = require("../models/User");
 const Project = require("../models/Project");
 const { trustFromProjects } = require("../scoring");
+const { profileSetup } = require("../coldStart");
+const { JOB_CATEGORIES } = require("../projectCategories");
 const { protect, allowRoles } = require("../middleware/authMiddleware");
 
 const router = express.Router();
@@ -12,7 +14,7 @@ router.get("/me", async (req, res) => {
     if (req.user.role === "client") return res.json({ name: req.user.name, company: req.user.company || { name: "", overview: "" } });
     if (req.user.role !== "freelancer") return res.status(403).json({ message: "Access denied" });
     const projects = await Project.find({ freelancer: req.user._id }).select("client status milestones.status milestones.revisionCount").lean();
-    res.json({ name: req.user.name, profile: req.user.profile || {}, trust: trustFromProjects(projects) });
+    res.json({ name: req.user.name, profile: req.user.profile || {}, setup: profileSetup(req.user.profile), trust: trustFromProjects(projects) });
   } catch {
     res.status(500).json({ message: "Server error" });
   }
@@ -31,7 +33,7 @@ router.put("/me", async (req, res) => {
       return res.json({ name: user.name, company: user.company });
     }
     if (req.user.role !== "freelancer") return res.status(403).json({ message: "Access denied" });
-    const { headline, bio, skills, experienceYears, portfolioUrl, portfolioItems, availability, hourlyRate, discoverable = false } = req.body || {};
+    const { headline, bio, skills, preferredCategories, experienceYears, portfolioUrl, portfolioItems, availability, hourlyRate, discoverable = false } = req.body || {};
     const cleanHeadline = typeof headline === "string" ? headline.trim() : "";
     const cleanBio = typeof bio === "string" ? bio.trim() : "";
     const cleanUrl = typeof portfolioUrl === "string" ? portfolioUrl.trim() : "";
@@ -46,6 +48,7 @@ router.put("/me", async (req, res) => {
       return res.status(400).json({ message: "Experience must be between 0 and 60 years" });
     }
     if (typeof discoverable !== "boolean") return res.status(400).json({ message: "Profile visibility must be on or off" });
+    if (preferredCategories !== undefined && (!Array.isArray(preferredCategories) || preferredCategories.length > JOB_CATEGORIES.length || preferredCategories.some(value => typeof value !== "string" || !JOB_CATEGORIES.includes(value)))) return res.status(400).json({ message: "Choose valid preferred work fields" });
     if (availability !== undefined && !["available", "limited", "unavailable"].includes(availability)) return res.status(400).json({ message: "Choose a valid availability" });
     if (hourlyRate !== undefined && hourlyRate !== null && (typeof hourlyRate === "boolean" || hourlyRate === "" || !Number.isFinite(Number(hourlyRate)) || Number(hourlyRate) < 0 || Number(hourlyRate) > 10000000)) {
       return res.status(400).json({ message: "Rate must be a non-negative number" });
@@ -85,10 +88,11 @@ router.put("/me", async (req, res) => {
       "profile.discoverable": discoverable,
     };
     if (portfolioItems !== undefined) profileFields["profile.portfolioItems"] = normalizedPortfolioItems;
+    if (preferredCategories !== undefined) profileFields["profile.preferredCategories"] = [...new Set(preferredCategories)];
     if (availability !== undefined) profileFields["profile.availability"] = availability;
     if (hourlyRate !== undefined) profileFields["profile.hourlyRate"] = hourlyRate === null ? null : Number(hourlyRate);
     const user = await User.findByIdAndUpdate(req.user._id, { $set: profileFields }, { returnDocument: "after", runValidators: true }).select("name profile");
-    res.json({ name: user.name, profile: user.profile });
+    res.json({ name: user.name, profile: user.profile, setup: profileSetup(user.profile) });
   } catch (error) {
     if (error.message === "Portfolio links must be valid web URLs") return res.status(400).json({ message: error.message });
     res.status(500).json({ message: "Server error" });

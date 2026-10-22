@@ -37,3 +37,14 @@ test("talent filters and pagination are restored from the URL", async () => {
   expect(screen.getByLabelText("Skill")).toHaveValue("React");
   expect(screen.getByLabelText("Availability")).toHaveValue("available");
 });
+
+test("clients can combine skill search with no approved platform history", async () => {
+  api.mockReset();
+  api.mockImplementation(path => Promise.resolve(path.startsWith("/talent?") ? { total: 0, pages: 0, talent: [] } : []));
+  render(<MemoryRouter initialEntries={["/talent?skill=React&history=none"]}><TalentDirectory /></MemoryRouter>);
+  expect(await screen.findByText("Showing 0–0 of 0 visible profiles")).toBeInTheDocument();
+  expect(screen.getByLabelText("Platform work history")).toHaveValue("none");
+  expect(screen.getByText(/They may have experience elsewhere/)).toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText("Platform work history"), { target: { value: "recorded" } });
+  await waitFor(() => expect(api).toHaveBeenCalledWith("/talent?skill=React&history=recorded&page=1"));
+});

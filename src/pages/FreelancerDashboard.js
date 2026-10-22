@@ -10,6 +10,7 @@ import useLiveUpdates from "../useLiveUpdates";
 import useDialogAccessibility from "../useDialogAccessibility";
 import ConversationPanel from "../components/ConversationPanel";
 import HiringOfferPanel from "../components/HiringOfferPanel";
+import RecommendedProjects from "../components/RecommendedProjects";
 
 const money = value => `₹${Number(value || 0).toLocaleString("en-IN")}`;
 
@@ -141,7 +142,7 @@ export default function FreelancerDashboard() {
       const brief = await api(`/projects/public/${project._id}`);
       setSelected(brief);
       prepareProposal(brief);
-    } catch (err) { setDiscoveryError(err.message); }
+    } catch (err) { setError(err.message); }
   }
 
   async function apply(event) {
@@ -208,6 +209,7 @@ export default function FreelancerDashboard() {
   return <Shell role="freelancer" eyebrow="FREELANCER WORKSPACE" title="Find your next great project." subtitle="Explore open work, send a thoughtful proposal and track your progress." action={<Link className="button button-outline" to="/profile">Edit my profile ↗</Link>}>
     {notice && <div className="message success" role="status">{notice}<button onClick={() => setNotice("")} aria-label="Dismiss message">×</button></div>}
     {error && <div className="message error" role="alert">{error}<button onClick={() => setError("")} aria-label="Dismiss error">×</button></div>}
+    {tab === "discover" && <RecommendedProjects refresh={discoveryRefresh} onOpen={openBrief} />}
     <div className="metrics-grid"><div className="metric-card"><span>Open projects</span><strong>{projectInfo.summary?.open ?? open.length}</strong><small>Ready for proposals</small><span className="metric-icon">↗</span></div><div className="metric-card"><span>Active work</span><strong>{projectInfo.summary?.active ?? assigned.filter(project => project.status === "In Progress").length}</strong><small>Projects assigned to you</small><span className="metric-icon">▦</span></div><div className="metric-card"><span>Pending proposals</span><strong>{pending}</strong><small>Waiting for a response</small><span className="metric-icon">✦</span></div></div>
     <section className="panel browse-panel"><div className="panel-heading"><div><p className="eyebrow">YOUR WORKSPACE</p><h2>Projects & proposals</h2></div>{liveStatus === "live" && <span className="live-pill">Live updates</span>}{liveStatus === "reconnecting" && <span className="live-pill reconnecting">Reconnecting…</span>}</div>
       <div className="tab-row" role="tablist" aria-label="Project views">
