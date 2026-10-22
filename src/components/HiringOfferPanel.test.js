@@ -90,3 +90,42 @@ test("offer cannot silently delete a milestone used by later steps", () => {
   fireEvent.click(screen.getAllByRole("button", { name: "Remove milestone" })[0]);
   expect(screen.getAllByLabelText("Title")).toHaveLength(1);
 });
+
+test("a proposal price different from the milestone total explains the gap beside submit and blocks the request", async () => {
+  const pending = { _id: "application-1", status: "PENDING", offers: [], proposedPrice: 9500 };
+  const job = { ...project, budget: 10000, description: "Build a responsive booking dashboard.", milestones: [{ title: "Plan", payment: 3000 }, { title: "Build", payment: 7000 }] };
+  api.mockResolvedValue({ application: { ...pending, offers: [offer] } });
+  render(<HiringOfferPanel application={pending} project={job} role="client" />);
+  fireEvent.click(screen.getByRole("button", { name: "Propose terms" }));
+  expect(screen.getByLabelText("Proposed amount")).toHaveValue(9500);
+  expect(screen.getByRole("status")).toHaveTextContent("Milestones total ₹10,000; offer amount ₹9,500. Reduce the milestone amounts by ₹500 or increase the offer amount.");
+  const send = screen.getByRole("button", { name: "Send offer" });
+  expect(send).toBeEnabled();
+  fireEvent.click(send);
+  expect(screen.getByRole("alert")).toHaveTextContent("Reduce the milestone amounts by ₹500");
+  expect(api).not.toHaveBeenCalled();
+  fireEvent.change(screen.getAllByLabelText("Planned amount")[1], { target: { value: "6500" } });
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  expect(screen.getByRole("status")).toHaveTextContent("Milestones total ₹9,500 matches the offer amount.");
+  fireEvent.click(send);
+  await waitFor(() => expect(api).toHaveBeenCalledTimes(1));
+  expect(JSON.parse(api.mock.calls[0][1].body).terms.amount).toBe(9500);
+});
+
+test("an underspecified milestone plan tells the client exactly how much is missing", () => {
+  const pending = { _id: "application-1", status: "PENDING", offers: [], proposedPrice: 10000 };
+  render(<HiringOfferPanel application={pending} project={{ ...project, milestones: [{ title: "Delivery", payment: 1000 }] }} role="client" />);
+  fireEvent.click(screen.getByRole("button", { name: "Propose terms" }));
+  expect(screen.getByRole("status")).toHaveTextContent("Add ₹9,000 to the milestone amounts or reduce the offer amount.");
+  fireEvent.change(screen.getByLabelText("Planned amount"), { target: { value: "" } });
+  expect(screen.getByRole("status")).toHaveTextContent("Enter a valid planned amount for every milestone");
+  expect(api).not.toHaveBeenCalled();
+});
+
+test("matching zero totals cannot send a zero-value offer", () => {
+  render(<HiringOfferPanel application={{ _id: "application-1", status: "PENDING", offers: [], proposedPrice: 0 }} project={project} role="client" />);
+  fireEvent.click(screen.getByRole("button", { name: "Propose terms" }));
+  expect(screen.getByRole("status")).toHaveTextContent("Enter an offer amount greater than ₹0");
+  fireEvent.submit(screen.getByRole("button", { name: "Send offer" }).closest("form"));
+  expect(api).not.toHaveBeenCalled();
+});

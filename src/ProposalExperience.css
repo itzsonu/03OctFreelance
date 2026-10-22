@@ -31,4 +31,9 @@
 .conversation-panel .file-picker input::file-selector-button{font:inherit;border:0;background:var(--surface);color:var(--ink);padding:5px 8px;border-radius:5px;margin-right:8px;cursor:pointer}
 .conversation-panel form>.button{min-height:44px}
 .public-session-notice{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:14px 0;font-size:14px;color:var(--muted)}
+.offer-submit-section{position:sticky;bottom:0;z-index:1;padding:14px;background:var(--paper);border:1px solid var(--line);border-radius:8px;box-shadow:0 -6px 18px rgba(41,39,36,.05)}
+.offer-submit-section .offer-total-feedback{margin:0;font-size:14px;line-height:1.5;color:var(--text-soft)}
+.offer-submit-section.amounts-mismatch{border-color:var(--brand-line)}
+.offer-submit-section.amounts-mismatch .offer-total-feedback{color:var(--accent-ink)}
+.offer-submit-section .dialog-actions{flex-wrap:wrap;margin-top:10px}
 @media(max-width:640px){.applicants-dialog{max-height:calc(100dvh - 24px)}.applicants-dialog>.dialog-heading{padding:16px 18px}.applicants-body{padding:16px 18px}.applicants-filters{grid-template-columns:1fr}.applicants-dialog .application-card{padding:15px}.application-top .application-stage{margin-left:0;max-width:100%;flex-basis:100%}.application-thread .application-stage{flex-basis:100%;max-width:100%}.conversation-panel .file-picker{flex-basis:100%;width:100%}.conversation-panel form>.button{width:100%}}

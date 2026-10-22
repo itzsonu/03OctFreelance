@@ -47,7 +47,16 @@ export default function HiringOfferPanel({ application: initialApplication, proj
   const milestoneCents = draft.milestones.map(milestone => toCents(milestone.payment));
   const totalCents = milestoneCents.reduce((sum, value) => sum + (value || 0), 0);
   const milestoneTotal = totalCents / 100;
-  const matchesAmount = milestoneCents.every(value => value !== null && value >= 0) && toCents(draft.amount) !== null && totalCents === toCents(draft.amount);
+  const amountCents = toCents(draft.amount);
+  const validMilestoneAmounts = milestoneCents.every(value => value !== null && value >= 0);
+  const matchesAmount = draft.milestones.length > 0 && validMilestoneAmounts && amountCents > 0 && totalCents === amountCents;
+  const amountIssue = !draft.milestones.length ? "Add at least one milestone before sending."
+    : amountCents === null || amountCents <= 0 ? "Enter an offer amount greater than ₹0, with up to two decimal places."
+    : !validMilestoneAmounts ? "Enter a valid planned amount for every milestone (₹0 or more, with up to two decimal places)."
+    : !matchesAmount ? `Milestones total ${money(milestoneTotal)}; offer amount ${money(draft.amount)}. ${totalCents < amountCents ? `Add ${money((amountCents - totalCents) / 100)} to the milestone amounts or reduce the offer amount.` : `Reduce the milestone amounts by ${money((totalCents - amountCents) / 100)} or increase the offer amount.`}`
+    : "";
+
+  useEffect(() => { setError(""); }, [draft]);
 
   function removeMilestone(index) {
     const dependent = draft.milestones.map((step, i) => step.dependsOn.includes(index) ? i + 1 : null).filter(Boolean);
@@ -67,6 +76,7 @@ export default function HiringOfferPanel({ application: initialApplication, proj
 
   async function sendOffer(event) {
     event.preventDefault();
+    if (!matchesAmount) { setError(amountIssue); return; }
     try { validateSchedule(draft.deliveryDate, draft.milestones); }
     catch (err) { setError(err.message); return; }
     setBusy(true); setError(""); setNotice("");
@@ -116,8 +126,11 @@ export default function HiringOfferPanel({ application: initialApplication, proj
       <label>Final scope<textarea required minLength="10" maxLength="5000" rows="4" value={draft.scope} onChange={event => setDraft(current => ({ ...current, scope: event.target.value }))} /></label>
       <div className="offer-editor-grid"><label>Proposed amount<input type="number" min="0.01" step="0.01" required value={draft.amount} onChange={event => setDraft(current => ({ ...current, amount: event.target.value }))} /></label><label>Delivery date<input type="date" required min={today()} value={draft.deliveryDate} onChange={event => setDraft(current => ({ ...current, deliveryDate: event.target.value }))} /></label></div>
       <div className="offer-milestone-editor"><div><strong>Milestones</strong><small>{matchesAmount ? "Planned amounts match the offer total." : `Planned amounts: ${money(milestoneTotal)} · offer total: ${money(draft.amount)}`}</small></div>{draft.milestones.map((milestone, index) => <fieldset key={index}><legend>Milestone {index + 1}</legend><label>Title<input required maxLength="120" value={milestone.title} onChange={event => setDraft(current => ({ ...current, milestones: current.milestones.map((item, itemIndex) => itemIndex === index ? { ...item, title: event.target.value } : item) }))} /></label><label>Details<input maxLength="1000" value={milestone.description} onChange={event => setDraft(current => ({ ...current, milestones: current.milestones.map((item, itemIndex) => itemIndex === index ? { ...item, description: event.target.value } : item) }))} /></label><div className="offer-editor-grid"><label>Planned amount<input type="number" min="0" step="0.01" required value={milestone.payment} onChange={event => setDraft(current => ({ ...current, milestones: current.milestones.map((item, itemIndex) => itemIndex === index ? { ...item, payment: event.target.value } : item) }))} /></label><label>Target date<input type="date" min={today()} max={draft.deliveryDate} value={milestone.dueDate} onChange={event => setDraft(current => ({ ...current, milestones: current.milestones.map((item, itemIndex) => itemIndex === index ? { ...item, dueDate: event.target.value } : item) }))} /></label></div>{index > 0 && <div className="dependency-picker"><strong>Unlock after</strong>{draft.milestones.slice(0, index).map((prior, priorIndex) => <label key={priorIndex}><input type="checkbox" checked={milestone.dependsOn.includes(priorIndex)} onChange={() => toggleDependency(index, priorIndex)} />Step {priorIndex + 1} · {prior.title || "Untitled"}</label>)}<small>Leave all unchecked to allow this step from the start.</small></div>}{draft.milestones.length > 1 && <button className="text-button" type="button" onClick={() => removeMilestone(index)}>Remove milestone</button>}</fieldset>)}{draft.milestones.length < 20 && <button className="button button-outline" type="button" onClick={() => setDraft(current => ({ ...current, milestones: [...current.milestones, { title: "", description: "", payment: "0", dueDate: "", dependsOn: current.milestones.length ? [current.milestones.length - 1] : [] }] }))}>Add milestone</button>}</div>
-      {error && <p className="message error" role="alert">{error}</p>}{notice && <p className="message success" role="status">{notice}</p>}
-      <div className="dialog-actions"><button className="button button-outline" type="button" onClick={() => setEditing(false)}>Cancel</button><button className="button button-dark" disabled={busy || !matchesAmount || draft.milestones.length < 1}>{busy ? "Sending…" : openOffer ? "Send new version" : "Send offer"}</button></div>
+      <div className={`offer-submit-section ${matchesAmount ? "amounts-match" : "amounts-mismatch"}`}>
+        <p className="offer-total-feedback" role={amountIssue && error === amountIssue ? "alert" : "status"}>{amountIssue || `Milestones total ${money(milestoneTotal)} matches the offer amount. Ready to send.`}</p>
+        {error && error !== amountIssue && <p className="message error" role="alert">{error}</p>}{notice && <p className="message success" role="status">{notice}</p>}
+        <div className="dialog-actions"><button className="button button-outline" type="button" onClick={() => setEditing(false)}>Cancel</button><button className="button button-dark" disabled={busy}>{busy ? "Sending…" : openOffer ? "Send new version" : "Send offer"}</button></div>
+      </div>
     </form>}
     {error && !editing && <p className="message error" role="alert">{error}</p>}{notice && !editing && <p className="message success" role="status">{notice}</p>}
   </section>;
