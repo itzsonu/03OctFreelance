@@ -8,7 +8,7 @@ jest.mock("../components/NotificationCenter", () => () => null);
 
 test("client can invite a visible freelancer to an open project", async () => {
   api.mockImplementation(path => {
-    if (path === "/projects/mine") return Promise.resolve([{ _id: "project-1", title: "Build a portal", status: "Open" }]);
+    if (path.split("?")[0] === "/projects/mine") return Promise.resolve([{ _id: "project-1", title: "Build a portal", status: "Open" }]);
     if (path === "/invitations/sent") return Promise.resolve([]);
     if (path.startsWith("/talent?")) return Promise.resolve({ total: 1, talent: [{ id: "freelancer-1", name: "Riya", headline: "React developer", bio: "I build web apps.", skills: ["React"], experienceYears: 3, trust: { score: null }, reviews: { count: 0 } }] });
     if (path === "/invitations") return Promise.resolve({ id: "invite-1", status: "PENDING" });
@@ -26,7 +26,7 @@ test("client can invite a visible freelancer to an open project", async () => {
 test("talent filters and pagination are restored from the URL", async () => {
   api.mockReset();
   api.mockImplementation(path => {
-    if (path === "/projects/mine") return Promise.resolve([]);
+    if (path.split("?")[0] === "/projects/mine") return Promise.resolve([]);
     if (path === "/invitations/sent") return Promise.resolve([]);
     if (path.startsWith("/talent?")) return Promise.resolve({ total: 13, page: 2, pageSize: 12, pages: 2, talent: [] });
     return Promise.reject(new Error(`Unexpected request ${path}`));

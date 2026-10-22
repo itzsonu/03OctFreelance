@@ -2,7 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const crypto = require("node:crypto");
 const mongoose = require("mongoose");
-const jwt = require("jsonwebtoken");
+const { testSession, authHeaders, responseAuth } = require("./testSession");
 const Project = require("./models/Project");
 const Application = require("./models/Application");
 const User = require("./models/User");
@@ -24,10 +24,10 @@ test("project editing, hiring and cancellation lifecycle with real database", as
     const people = {};
     for (const [key, role] of [["client", "client"], ["stranger", "client"], ["freelancer", "freelancer"], ["other", "freelancer"]]) {
       const user = await User.create({ name: key, email: `${key}@example.test`, password: "test-only-hash", role });
-      people[key] = { id: String(user._id), token: jwt.sign({ id: user._id, role }, process.env.JWT_SECRET) };
+      people[key] = { id: String(user._id), token: await testSession(user) };
     }
     async function request(method, path, who, body, expected = 200) {
-      const response = await fetch(base + path, { method, headers: { ...(who ? { Authorization: `Bearer ${people[who].token}` } : {}), "Content-Type": "application/json" }, ...(body ? { body: JSON.stringify(body) } : {}) });
+      const response = await fetch(base + path, { method, headers: { ...authHeaders(who ? people[who].token : null), "Content-Type": "application/json" }, ...(body ? { body: JSON.stringify(body) } : {}) });
       const result = await response.json();
       assert.equal(response.status, expected, `${method} ${path}: ${JSON.stringify(result)}`);
       return result;
@@ -160,8 +160,8 @@ test("project editing, hiring and cancellation lifecycle with real database", as
         const project = await create();
         const applied = await proposal(project);
         const offered = await offer(applied);
-        const editing = fetch(base + "/projects/" + project._id + (operation === "edit" ? "/listing" : "/hiring"), { method: operation === "edit" ? "PATCH" : "POST", headers: { Authorization: "Bearer " + people.client.token, "Content-Type": "application/json" }, body: JSON.stringify(operation === "edit" ? { ...draft("Changed during acceptance"), version: project.__v } : { version: project.__v, action: "close" }) });
-        const accepting = fetch(base + "/applications/" + applied._id + "/offer/" + offered.currentOfferId + "/accept", { method: "POST", headers: { Authorization: "Bearer " + people.freelancer.token, "Content-Type": "application/json" }, body: "{}" });
+        const editing = fetch(base + "/projects/" + project._id + (operation === "edit" ? "/listing" : "/hiring"), { method: operation === "edit" ? "PATCH" : "POST", headers: { ...authHeaders(people.client.token), "Content-Type": "application/json" }, body: JSON.stringify(operation === "edit" ? { ...draft("Changed during acceptance"), version: project.__v } : { version: project.__v, action: "close" }) });
+        const accepting = fetch(base + "/applications/" + applied._id + "/offer/" + offered.currentOfferId + "/accept", { method: "POST", headers: { ...authHeaders(people.freelancer.token), "Content-Type": "application/json" }, body: "{}" });
         const [changed, accepted] = await Promise.all([editing, accepting]);
         assert.deepEqual([changed.status, accepted.status].sort(), [200, 409]);
         const stored = await Project.findById(project._id);
@@ -181,7 +181,7 @@ test("project editing, hiring and cancellation lifecycle with real database", as
     await t.test("competing cancellation requests have one winner and completed work stays terminal", async () => {
       const { project } = await hire();
       const body = { version: project.__v, reason: "Concurrent request to end the project by agreement." };
-      const results = await Promise.all(["client", "freelancer"].map(who => fetch(`${base}/projects/${project._id}/cancellations`, { method: "POST", headers: { Authorization: `Bearer ${people[who].token}`, "Content-Type": "application/json" }, body: JSON.stringify(body) })));
+      const results = await Promise.all(["client", "freelancer"].map(who => fetch(`${base}/projects/${project._id}/cancellations`, { method: "POST", headers: { ...authHeaders(people[who].token), "Content-Type": "application/json" }, body: JSON.stringify(body) })));
       assert.deepEqual(results.map(item => item.status).sort(), [200, 409]);
       assert.equal((await Project.findById(project._id)).cancellationRequests.length, 1);
       await Project.updateOne({ _id: project._id }, { $set: { status: "Completed", pendingCancellation: null } });

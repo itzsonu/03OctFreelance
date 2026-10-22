@@ -15,7 +15,7 @@ test("password mismatch is local; successful update signs out the current sessio
   fireEvent.change(screen.getByLabelText("Confirm new password"), { target: { value: "not-matching" } });
   fireEvent.click(screen.getByRole("button", { name: "Change password and sign out" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("do not match");
-  expect(api).toHaveBeenCalledTimes(1);
+  expect(api.mock.calls.filter(([path]) => path === "/account/password")).toHaveLength(0);
   fireEvent.change(screen.getByLabelText("Confirm new password"), { target: { value: "new-password-123" } });
   fireEvent.click(screen.getByRole("button", { name: "Change password and sign out" }));
   await waitFor(() => expect(signOut).toHaveBeenCalledTimes(1));

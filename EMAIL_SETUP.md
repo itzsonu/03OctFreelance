@@ -1,4 +1,18 @@
-# Reset email setup with Gmail
+# Email delivery setup
+
+## Optional important-event alerts
+
+Medium 6 adds four independent opt-in choices under **Account settings → Email alerts**: proposals, offers/agreements, milestone submissions and revision requests. All start off for existing and new users. Password-reset and email-verification messages are separate from these choices; in-app notifications remain enabled.
+
+**Event sending is intentionally deferred.** `EVENT_EMAILS_ENABLED` defaults to off, and the example environment explicitly sets it to `false`. No private environment configuration was changed for this feature. Preferences can be saved now. Enabling sending later requires a working delivery provider, a correct `APP_ORIGIN`, `EVENT_EMAILS_ENABLED=true` and a server restart. The same Gmail or Resend settings used for security mail are reused. Local `RESET_DELIVERY=console` prints previews only and never sends mail; console mode is restricted to localhost origins.
+
+New eligible events enter the MongoDB notification outbox. The server checks it every 15 seconds, processes up to 10 per pass, retries failures at one- and two-minute intervals, and stops after three attempts. Leases recover unfinished deliveries after restart. It rechecks current account preferences before delivery; an opt-out skips queued alerts. Events created while sending is disabled or a preference is off are not sent retrospectively. If the provider is temporarily unconfigured, existing queued events wait. Failed events remain recorded for operational inspection.
+
+Email includes a short event summary and sign-in link, with a link to preferences; it does not include proposal text, submitted work or uploaded files. Provider delivery is separate from project actions. Resend receives a stable idempotency key per notification. Gmail delivery has an at-least-once retry limit: a crash after SMTP acceptance can result in a duplicate. A successful provider response means accepted for sending, not confirmed inbox arrival.
+
+Run the focused backend checks with `npm run test:drafts-emails` in `backend`. They use a uniquely named temporary database, delete only that test database, and mock mail delivery. Live inbox verification remains pending.
+
+## Reset email setup with Gmail
 
 The local demo currently uses `RESET_DELIVERY=console`. In this mode the backend prints reset links in its terminal, so no email arrives. Gmail delivery is implemented, but a real message cannot be tested until a Gmail account and App Password are configured.
 

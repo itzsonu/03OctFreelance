@@ -2,6 +2,8 @@ const mongoose = require("mongoose");
 
 const userSchema = new mongoose.Schema(
   {
+    ...require("./moderationFields")(),
+    suspended: { type: Boolean, default: false },
     name: {
       type: String,
       required: true,
@@ -16,6 +18,12 @@ const userSchema = new mongoose.Schema(
       required: true,
     },
     emailVerifiedAt: { type: Date, default: null },
+    emailPreferences: {
+      proposals: { type: Boolean, default: false },
+      offers: { type: Boolean, default: false },
+      submissions: { type: Boolean, default: false },
+      revisions: { type: Boolean, default: false },
+    },
     pendingEmail: { type: String, select: false },
     emailChangeTokenHash: { type: String, select: false },
     emailChangeExpiresAt: { type: Date, select: false },
@@ -53,4 +61,5 @@ const userSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+userSchema.index({ role: 1, suspended: 1, createdAt: -1, _id: -1 });
 module.exports = mongoose.model("User", userSchema);

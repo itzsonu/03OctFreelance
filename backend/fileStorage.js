@@ -30,7 +30,7 @@ function parseFiles(req, res, next) {
 function validateFile(file) {
   const extension = path.extname(file.originalname || "").toLowerCase();
   const type = TYPES[extension];
-  if (!type || file.mimetype !== type.mime || !file.buffer?.length || file.size > MAX_FILE_SIZE) return false;
+  if (!type || file.mimetype !== type.mime || !file.buffer?.length || file.size !== file.buffer.length || file.buffer.length > MAX_FILE_SIZE) return false;
   if (type.text) {
     const text = file.buffer.toString("utf8");
     return !text.includes("\u0000") && !text.includes("\ufffd");
@@ -48,15 +48,19 @@ function storageRoot() {
   return root;
 }
 
-async function storeFile(file) {
+async function storeFile(file, id = crypto.randomUUID()) {
   if (!validateFile(file)) {
     const error = new Error("Unsupported or invalid file content");
     error.code = "INVALID_FILE";
     throw error;
   }
-  const id = crypto.randomUUID();
+  if (!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/.test(id)) throw new Error("Invalid storage key");
   await fs.mkdir(storageRoot(), { recursive: true, mode: 0o700 });
   await fs.writeFile(path.join(storageRoot(), id), file.buffer, { flag: "wx", mode: 0o600 });
+  return fileMetadata(file, id);
+}
+
+function fileMetadata(file, id) {
   const extension = path.extname(file.originalname).toLowerCase();
   return {
     storageKey: id,
@@ -78,4 +82,4 @@ async function removeFile(storageKey) {
   catch (error) { if (error.code !== "ENOENT") throw error; }
 }
 
-module.exports = { MAX_FILE_SIZE, upload, parseFiles, validateFile, storeFile, readFile, removeFile };
+module.exports = { MAX_FILE_SIZE, upload, parseFiles, validateFile, storeFile, readFile, removeFile, storageRoot, fileMetadata };

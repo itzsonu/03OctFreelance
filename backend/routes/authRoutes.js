@@ -1,30 +1,15 @@
 const express = require("express");
 const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
 const crypto = require("node:crypto");
 const User = require("../models/User");
 const { RESET_MESSAGE, LOCAL_RESET_MESSAGE, resetDeliveryMode, resetDeliveryReady, sendResetEmail } = require("../resetMail");
 
 const { emailChangeFields, passwordError } = require("../accountSecurity");
 const { disconnectUser } = require("../liveUpdates");
+const { createSession, readSession, setSessionCookie, clearSessionCookie, revokeSession, revokeUserSessions, sessionToken, csrfValid, userView } = require("../sessions");
 const router = express.Router();
-const authAttempts = new Map();
 
-function limitAttempts(kind, max) {
-  return (req, res, next) => {
-    const key = `${kind}:${req.ip}`;
-    const now = Date.now();
-    const current = authAttempts.get(key);
-    const entry = !current || current.until <= now ? { count: 0, until: now + 15 * 60 * 1000 } : current;
-    entry.count += 1;
-    authAttempts.set(key, entry);
-    if (authAttempts.size > 10000) authAttempts.delete(authAttempts.keys().next().value);
-    if (entry.count > max) return res.status(429).json({ message: "Too many attempts. Please try again later." });
-    next();
-  };
-}
-
-router.post("/register", limitAttempts("register", 10), async (req, res) => {
+router.post("/register", async (req, res) => {
   try {
     const { name, email, password, role } = req.body || {};
 
@@ -73,11 +58,11 @@ router.post("/register", limitAttempts("register", 10), async (req, res) => {
   }
 });
 
-router.post("/login", limitAttempts("login", 20), async (req, res) => {
+router.post("/login", async (req, res) => {
   try {
     const { email, password, role } = req.body || {};
 
-    if (typeof email !== "string" || !email.trim() || email.length > 254 || typeof password !== "string" || !password || !["client", "freelancer", "admin"].includes(role)) {
+    if (typeof email !== "string" || !email.trim() || email.length > 254 || typeof password !== "string" || !password || password.length > 128 || !["client", "freelancer", "admin"].includes(role)) {
       return res.status(400).json({ message: "Email, password and role are required" });
     }
 
@@ -93,15 +78,14 @@ router.post("/login", limitAttempts("login", 20), async (req, res) => {
       return res.status(400).json({ message: "Invalid credentials" });
     }
 
-    const token = jwt.sign(
-      { id: user._id, role: user.role, version: user.tokenVersion || 0 },
-      process.env.JWT_SECRET,
-      { expiresIn: "1d" }
-    );
-
+    if (user.suspended) return res.status(403).json({ message: "This account is suspended. Contact the platform administrator for help." });
+    const created = await createSession(user);
+    await revokeSession(sessionToken(req));
+    setSessionCookie(res, created.token);
     res.json({
       message: "Login successful",
-      token,
+      csrfToken: created.csrfToken,
+      expiresAt: created.session.expiresAt,
       user: {
         id: user._id,
         name: user.name,
@@ -114,9 +98,28 @@ router.post("/login", limitAttempts("login", 20), async (req, res) => {
   }
 });
 
+router.get("/session", async (req, res) => {
+  try {
+    const auth = await readSession(req);
+    if (!auth) { clearSessionCookie(res); return res.json({ user: null, csrfToken: null }); }
+    res.json({ user: userView(auth.user), csrfToken: auth.csrfToken, expiresAt: auth.session.expiresAt });
+  } catch { res.status(503).json({ message: "Unable to restore your session. Please try again." }); }
+});
+
+router.post("/logout", async (req, res) => {
+  try {
+    const token = sessionToken(req);
+    if (token && !csrfValid(req, token)) return res.status(403).json({ code: "CSRF_INVALID", message: "Refresh the page before signing out." });
+    await revokeSession(token);
+    clearSessionCookie(res);
+    require("../liveUpdates").disconnectSession(token);
+    res.json({ message: "Signed out", signedOut: true });
+  } catch { res.status(503).json({ message: "Unable to sign out. Please try again." }); }
+});
+
 router.get("/recovery-status", (_req, res) => res.json({ mode: resetDeliveryMode() }));
 
-router.post("/forgot-password", limitAttempts("request", 5), async (req, res) => {
+router.post("/forgot-password", async (req, res) => {
   const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
   if (!/^\S+@\S+\.\S+$/.test(email) || email.length > 254) {
     return res.status(400).json({ message: "Enter a valid email address" });
@@ -151,13 +154,11 @@ router.post("/forgot-password", limitAttempts("request", 5), async (req, res) =>
   }
 });
 
-router.post("/reset-password", limitAttempts("confirm", 10), async (req, res) => {
+router.post("/reset-password", async (req, res) => {
   const token = typeof req.body?.token === "string" ? req.body.token : "";
   const password = req.body?.password;
   if (!/^[A-Za-z0-9_-]{43}$/.test(token)) return res.status(400).json({ message: "Reset link is invalid or expired." });
-  if (typeof password !== "string" || password.length < 8 || password.length > 128) {
-    return res.status(400).json({ message: "Password must have 8–128 characters" });
-  }
+  if (passwordError(password)) return res.status(400).json({ message: passwordError(password) });
   try {
     const hash = crypto.createHash("sha256").update(token).digest("hex");
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -166,6 +167,8 @@ router.post("/reset-password", limitAttempts("confirm", 10), async (req, res) =>
       { $set: { password: hashedPassword }, $inc: { tokenVersion: 1 }, $unset: { ...emailChangeFields, passwordResetTokenHash: "", passwordResetExpiresAt: "", passwordResetRequestedAt: "" } },
     );
     if (!user) return res.status(400).json({ message: "Reset link is invalid or expired." });
+    await revokeUserSessions(user._id);
+    clearSessionCookie(res);
     disconnectUser(user._id);
     res.json({ message: "Password updated. Log in with your new password." });
   } catch (error) {

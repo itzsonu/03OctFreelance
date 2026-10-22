@@ -1,20 +1,30 @@
-const dotenv = require("dotenv");
-dotenv.config();
-
-const connectDB = require("./db");
-const app = require("./app");
-
+require("dotenv").config();
+const mongoose = require("mongoose");
+const deployment = require("./deployment");
 async function start() {
-  if (!process.env.MONGO_URI) throw new Error("MONGO_URI is required");
-  if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
-    throw new Error("JWT_SECRET must contain at least 32 characters");
+  await deployment.loadSecrets();
+  const settings = deployment.config();
+  await deployment.checkPrivateStorage();
+  await require("./db")();
+  await Promise.all([require("./models/Session").init(), require("./models/RateBucket").init(), require("./models/StorageUsage").init(), require("./models/SupportRequest").init()]);
+  const app = require("./app");
+  const stopWorker = require("./eventEmails").startEventEmailWorker();
+  let stopping = false;
+  const server = app.listen(settings.port, settings.host, () => console.log("Server running on port " + settings.port));
+  async function shutdown() {
+    if (stopping) return; stopping = true; app.locals.draining = true;
+    stopWorker(); require("./liveUpdates").disconnectAll();
+    const deadline = setTimeout(() => { server.closeAllConnections(); process.exit(1); }, 25000); deadline.unref();
+    await new Promise(resolve => server.close(resolve));
+    await mongoose.disconnect(); clearTimeout(deadline);
   }
-  await connectDB();
-  const port = process.env.PORT || 5000;
-  app.listen(port, () => console.log(`Server running on port ${port}`));
+  server.on("error", error => { console.error("HTTP listener failed:", error.code || "error"); process.exitCode = 1; shutdown().catch(() => process.exit(1)); });
+  process.once("SIGTERM", () => shutdown().catch(() => process.exit(1)));
+  process.once("SIGINT", () => shutdown().catch(() => process.exit(1)));
+  return { server, shutdown };
 }
-
-start().catch(error => {
-  console.error("Startup failed:", error.message);
-  process.exitCode = 1;
+if (require.main === module) start().catch(() => {
+  console.error("Startup failed. Check database access, private storage and deployment configuration.");
+  mongoose.disconnect().finally(() => { process.exitCode = 1; });
 });
+module.exports = { start };

@@ -1,12 +1,13 @@
+const { saveAttachments } = require("../attachmentStorage");
 const express = require("express");
 const mongoose = require("mongoose");
 const Application = require("../models/Application");
 const Message = require("../models/Message");
-const Attachment = require("../models/Attachment");
 const { protect } = require("../middleware/authMiddleware");
 const { publishUser } = require("../liveUpdates");
 const { notifyUser } = require("../notifications");
-const { parseFiles, validateFile, storeFile, removeFile } = require("../fileStorage");
+const { parseFiles } = require("../fileStorage");
+const cursor = require("../messageCursor");
 
 const router = express.Router();
 router.use(protect);
@@ -24,41 +25,37 @@ async function conversation(req, res, next) {
   next();
 }
 
-async function saveAttachments(application, user, files) {
-  const saved = [];
-  try {
-    for (const file of files || []) {
-      if (!validateFile(file)) {
-        const error = new Error("Unsupported or invalid file content");
-        error.status = 400;
-        throw error;
-      }
-      const stored = await storeFile(file);
-      try { saved.push(await Attachment.create({ project: application.project._id, uploader: user._id, ...stored })); }
-      catch (error) { await removeFile(stored.storageKey); throw error; }
-    }
-    return saved;
-  } catch (error) {
-    await Promise.all(saved.map(item => removeFile(item.storageKey)));
-    if (saved.length) await Attachment.deleteMany({ _id: { $in: saved.map(item => item._id) } });
-    throw error;
-  }
-}
 
 const attachmentView = attachment => ({ id: attachment._id, filename: attachment.filename, mimeType: attachment.mimeType, size: attachment.size });
 
 router.get("/application/:applicationId", conversation, async (req, res) => {
-  await Message.updateMany({ application: req.conversation.application._id, sender: { $ne: req.user._id }, readBy: { $ne: req.user._id } }, { $addToSet: { readBy: req.user._id } });
-  const messages = await Message.find({ application: req.conversation.application._id })
-    .select("sender body attachments createdAt").populate("attachments", "filename mimeType size").sort({ createdAt: -1 }).limit(100).lean();
-  res.json(messages.reverse().map(message => ({ id: message._id, senderId: message.sender, body: message.body, attachments: (message.attachments || []).map(attachmentView), createdAt: message.createdAt })));
+  try {
+    const explicit = req.query.limit !== undefined || req.query.before !== undefined || req.query.after !== undefined;
+    const size = req.query.limit === undefined ? 30 : Number(req.query.limit);
+    if (req.query.limit !== undefined && (typeof req.query.limit !== "string" || !/^[1-9]\d*$/.test(req.query.limit))) throw new Error("Invalid message page size");
+    if (!Number.isInteger(size) || size < 1 || size > 50 || (req.query.before !== undefined && req.query.after !== undefined)) throw new Error("Invalid message pagination");
+    const after = req.query.after !== undefined;
+    const value = after ? req.query.after : req.query.before;
+    const filter = { application: req.conversation.application._id };
+    if (value !== undefined) {
+      const boundary = cursor.decode(value); const op = after ? "$gt" : "$lt";
+      filter.$or = [{ createdAt: { [op]: boundary.createdAt } }, { createdAt: boundary.createdAt, _id: { [op]: boundary.id } }];
+    }
+    const direction = after ? 1 : -1;
+    const records = await Message.find(filter).select("sender body attachments createdAt").populate("attachments", "filename mimeType size").sort({ createdAt: direction, _id: direction }).limit(size + 1).lean();
+    const hasMore = records.length > size;
+    const shown = records.slice(0, size); if (!after) shown.reverse();
+    await Message.updateMany({ _id: { $in: shown.map(item => item._id) }, sender: { $ne: req.user._id }, readBy: { $ne: req.user._id } }, { $addToSet: { readBy: req.user._id } });
+    const messages = shown.map(message => ({ id: message._id, senderId: message.sender, body: message.body, attachments: (message.attachments || []).map(attachmentView), createdAt: message.createdAt }));
+    res.json(explicit ? { messages, hasOlder: !after && hasMore, hasMore: after && hasMore, beforeCursor: cursor.encode(shown[0]), afterCursor: cursor.encode(shown.at(-1)) || (after ? value : null) } : messages);
+  } catch (error) { res.status(error.message.startsWith("Invalid message") ? 400 : 500).json({ message: error.message.startsWith("Invalid message") ? error.message : "Unable to load messages" }); }
 });
 
 router.post("/application/:applicationId", conversation, parseFiles, async (req, res) => {
   try {
     const body = typeof req.body?.body === "string" ? req.body.body.trim() : "";
     if ((!body && !req.files?.length) || body.length > 2000) return res.status(400).json({ message: "Add a message or attachment (up to 2000 characters)" });
-    const attachments = await saveAttachments(req.conversation.application, req.user, req.files);
+    const attachments = await saveAttachments(req.conversation.application.project, req.user, req.files);
     const saved = await Message.create({ application: req.conversation.application._id, sender: req.user._id, body, attachments: attachments.map(item => item._id), readBy: [req.user._id] });
     publishUser(req.conversation.recipientId, "messages", req.conversation.application.project._id);
     await notifyUser(req.conversation.recipientId, "message", "New message", `${req.user.name || "Your project contact"} sent you a message.`, `/milestones/${req.conversation.application.project._id}`);

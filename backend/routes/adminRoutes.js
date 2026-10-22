@@ -7,9 +7,13 @@ const { protect, allowRoles } = require("../middleware/authMiddleware");
 const { publishProject } = require("../liveUpdates");
 const { notifyUser } = require("../notifications");
 const { readFile } = require("../fileStorage");
+const { pagination, listResponse } = require("../pagination");
 
 const router = express.Router();
 router.use(protect, allowRoles("admin"));
+router.use(require("./supportRoutes").adminRouter);
+router.use(require("./storageRoutes"));
+router.use(require("./adminModerationRoutes"));
 
 function casePopulation(query) {
   return query
@@ -20,11 +24,13 @@ function casePopulation(query) {
 }
 
 router.get("/cases", async (req, res) => {
+  try {
+  const paging = pagination(req.query);
   const status = req.query.status || "open";
   if (!["open", "resolved", "all"].includes(status)) return res.status(400).json({ message: "Choose open, resolved or all cases" });
   const filter = status === "all" ? {} : { status };
-  const cases = await casePopulation(Dispute.find(filter).sort({ updatedAt: -1 }).limit(200)).lean();
-  res.json(cases.map(item => ({
+  const cases = await casePopulation(Dispute.find(filter).sort({ updatedAt: -1, _id: -1 }).skip(paging.skip).limit(paging.pageSize)).lean();
+  listResponse(res, cases.map(item => ({
     _id: item._id,
     project: item.project,
     status: item.status,
@@ -32,7 +38,8 @@ router.get("/cases", async (req, res) => {
     updatedAt: item.updatedAt,
     historyCount: item.history.length,
     resolution: item.resolution,
-  })));
+  })), await Dispute.countDocuments(filter), paging);
+  } catch (error) { res.status(error.status || 500).json({ message: error.status ? error.message : "Unable to load cases" }); }
 });
 
 router.get("/cases/:caseId/files/:fileId", async (req, res) => {

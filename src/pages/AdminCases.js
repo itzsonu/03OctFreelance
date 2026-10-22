@@ -1,12 +1,18 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { api, downloadCaseAttachment } from "../api";
 import Shell from "../components/Shell";
+import Pagination from "../components/Pagination";
+import { readPage } from "../usePagedList";
 
 const dateTime = value => value ? new Date(value).toLocaleString() : "Time unavailable";
 
 export default function AdminCases() {
   const [statusFilter, setStatusFilter] = useState("open");
   const [cases, setCases] = useState([]);
+  const [page, setPage] = useState(1);
+  const [pageInfo, setPageInfo] = useState(() => readPage([]));
+  const caseVersion = useRef(0);
+  const detailVersion = useRef(0);
   const [selectedId, setSelectedId] = useState(null);
   const [detail, setDetail] = useState(null);
   const [reason, setReason] = useState("");
@@ -16,23 +22,27 @@ export default function AdminCases() {
   const [notice, setNotice] = useState("");
 
   const loadCases = useCallback(async () => {
+    const version = {}; caseVersion.current = version;
     setLoading(true);
     try {
-      const data = await api(`/admin/cases?status=${statusFilter}`);
-      setCases(data);
+      const data = readPage(await api(`/admin/cases?status=${statusFilter}&page=${page}&pageSize=12`), page);
+      if (version !== caseVersion.current) return;
+      if (page > Math.max(1, data.pages)) { setPage(Math.max(1, data.pages)); return; }
+      setCases(data.items); setPageInfo(data);
       setError("");
-    } catch (err) { setError(err.message); }
-    finally { setLoading(false); }
-  }, [statusFilter]);
+    } catch (err) { if (version === caseVersion.current) setError(err.message); }
+    finally { if (version === caseVersion.current) setLoading(false); }
+  }, [statusFilter, page]);
 
-  useEffect(() => { loadCases(); }, [loadCases]);
+  useEffect(() => { loadCases(); return () => { caseVersion.current = null; detailVersion.current = null; }; }, [loadCases]);
 
   async function openCase(caseId) {
+    const version = {}; detailVersion.current = version;
     setSelectedId(caseId);
     setDetail(null);
     setError("");
-    try { setDetail(await api(`/admin/cases/${caseId}`)); }
-    catch (err) { setError(err.message); }
+    try { const data = await api(`/admin/cases/${caseId}`); if (version === detailVersion.current) setDetail(data); }
+    catch (err) { if (version === detailVersion.current) setError(err.message); }
   }
 
   async function resolveCase(event) {
@@ -53,8 +63,9 @@ export default function AdminCases() {
     {notice && <p className="message success" role="status">{notice}<button type="button" onClick={() => setNotice("")} aria-label="Dismiss message">×</button></p>}
     {error && <p className="message error" role="alert">{error}</p>}
     <section className="panel admin-case-panel">
-      <div className="panel-heading"><div><p className="eyebrow">CASE QUEUE</p><h2>Cases</h2></div><label>Show<select aria-label="Case status" value={statusFilter} onChange={event => { setStatusFilter(event.target.value); setSelectedId(null); setDetail(null); }}><option value="open">Open</option><option value="resolved">Resolved</option><option value="all">All</option></select></label></div>
-      {loading ? <p role="status">Loading cases…</p> : cases.length === 0 ? <p className="empty-state">No {statusFilter === "all" ? "" : `${statusFilter} `}cases.</p> : <div className="admin-case-list">{cases.map(item => <button className={`admin-case-row ${selectedId === item._id ? "selected" : ""}`} type="button" key={item._id} onClick={() => openCase(item._id)}><span><strong>{item.project?.title || "Project unavailable"}</strong><small>{item.project?.client?.name || "Client"} · {item.project?.freelancer?.name || "Freelancer"} · {item.historyCount} history entries</small></span><span className={`status status-${item.status}`}>{item.status}</span></button>)}</div>}
+      <div className="panel-heading"><div><p className="eyebrow">CASE QUEUE</p><h2>Cases</h2></div><label>Show<select disabled={busy} aria-label="Case status" value={statusFilter} onChange={event => { setStatusFilter(event.target.value); setPage(1); detailVersion.current = null; setSelectedId(null); setDetail(null); }}><option value="open">Open</option><option value="resolved">Resolved</option><option value="all">All</option></select></label></div>
+      {loading ? <p role="status">Loading cases…</p> : cases.length === 0 ? <p className="empty-state">No {statusFilter === "all" ? "" : `${statusFilter} `}cases.</p> : <div className="admin-case-list">{cases.map(item => <button className={`admin-case-row ${selectedId === item._id ? "selected" : ""}`} type="button" disabled={busy} key={item._id} onClick={() => openCase(item._id)}><span><strong>{item.project?.title || "Project unavailable"}</strong><small>{item.project?.client?.name || "Client"} · {item.project?.freelancer?.name || "Freelancer"} · {item.historyCount} history entries</small></span><span className={`status status-${item.status}`}>{item.status}</span></button>)}</div>}
+      <Pagination {...pageInfo} page={page} loading={loading || busy} onPage={value => { setPage(value); setSelectedId(null); setDetail(null); }} label="cases" />
     </section>
     {selectedId && <section className="panel admin-case-detail" aria-labelledby="admin-case-heading">
       {!detail ? <p role="status">Loading case detail…</p> : <>

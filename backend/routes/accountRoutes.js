@@ -6,19 +6,10 @@ const { protect } = require("../middleware/authMiddleware");
 const { resetDeliveryMode, resetDeliveryReady, sendEmailChangeLink } = require("../resetMail");
 const { emailChangeFields, resetFields, passwordError } = require("../accountSecurity");
 const { disconnectUser } = require("../liveUpdates");
+const { EMAIL_CATEGORIES, emailPreferences } = require("../emailPreferences");
+const { clearSessionCookie, revokeUserSessions } = require("../sessions");
 const router = express.Router();
-const attempts = new Map();
 const fail = (status, message) => { const error = new Error(message); error.status = status; throw error; };
-function limit(req, res, next) {
-  const key = req.user ? String(req.user._id) : req.ip;
-  const now = Date.now();
-  const entry = attempts.get(key);
-  const current = !entry || entry.until < now ? { count: 0, until: now + 15 * 60 * 1000 } : entry;
-  attempts.set(key, current); current.count++;
-  if (attempts.size > 10000) attempts.delete(attempts.keys().next().value);
-  if (current.count > 20) return res.status(429).json({ message: "Too many account changes. Please try later." });
-  next();
-}
 const handle = action => async (req, res) => {
   try { await action(req, res); }
   catch (error) { res.status(error.status || (error.code === 11000 ? 409 : 500)).json({ message: error.status ? error.message : error.code === 11000 ? "This email address is unavailable. Request a different address." : "Unable to update account" }); }
@@ -40,7 +31,18 @@ router.get("/", protect, handle(async (req, res) => {
   res.json({ name: user.name, email: user.email, emailVerified: !!user.emailVerifiedAt, pendingEmail: user.emailChangeExpiresAt > new Date() ? user.pendingEmail || null : null, emailChangeExpiresAt: user.emailChangeExpiresAt > new Date() ? user.emailChangeExpiresAt : null, deliveryMode: resetDeliveryMode() });
 }));
 
-router.post("/password", protect, limit, handle(async (req, res) => {
+router.get("/notification-preferences", protect, handle(async (req, res) => {
+  res.json({ preferences: emailPreferences(req.user), deliveryMode: resetDeliveryMode(), enabled: process.env.EVENT_EMAILS_ENABLED === "true" });
+}));
+router.put("/notification-preferences", protect, handle(async (req, res) => {
+  const values = req.body?.preferences;
+  if (!values || typeof values !== "object" || Array.isArray(values) || Object.keys(values).some(key => !EMAIL_CATEGORIES.includes(key)) || EMAIL_CATEGORIES.some(key => typeof values[key] !== "boolean")) fail(400, "Choose true or false for all four email preferences");
+  const preferences = Object.fromEntries(EMAIL_CATEGORIES.map(key => [key, values[key]]));
+  await User.updateOne({ _id: req.user._id }, { $set: { emailPreferences: preferences } });
+  res.json({ preferences, message: "Email preferences saved. In-app notifications stay enabled." });
+}));
+
+router.post("/password", protect, handle(async (req, res) => {
   const error = passwordError(req.body?.password);
   if (error) fail(400, error);
   const user = await authenticatedPassword(req);
@@ -49,18 +51,20 @@ router.post("/password", protect, limit, handle(async (req, res) => {
   const changed = await User.findOneAndUpdate(versionFilter(user), { $set: { password }, $inc: { tokenVersion: 1 }, $unset: { ...emailChangeFields, ...resetFields } });
   if (!changed) fail(409, "Your account changed. Log in again before retrying.");
   disconnectUser(user._id);
+  await revokeUserSessions(user._id); clearSessionCookie(res);
   res.json({ message: "Password changed. All devices are signed out; log in with your new password.", signedOut: true });
 }));
 
-router.post("/logout-all", protect, limit, handle(async (req, res) => {
+router.post("/logout-all", protect, handle(async (req, res) => {
   const user = await authenticatedPassword(req);
   const changed = await User.findOneAndUpdate(versionFilter(user), { $inc: { tokenVersion: 1 }, $unset: { ...emailChangeFields, ...resetFields } });
   if (!changed) fail(409, "Your account changed. Log in again.");
   disconnectUser(user._id);
+  await revokeUserSessions(user._id); clearSessionCookie(res);
   res.json({ message: "All devices are signed out. Log in again to continue.", signedOut: true });
 }));
 
-router.post("/email", protect, limit, handle(async (req, res) => {
+router.post("/email", protect, handle(async (req, res) => {
   const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
   if (email.length > 254 || !/^\S+@\S+\.\S+$/.test(email)) fail(400, "Enter a valid new email address");
   const user = await authenticatedPassword(req);
@@ -80,14 +84,14 @@ router.post("/email", protect, limit, handle(async (req, res) => {
   res.json({ message: resetDeliveryMode() === "local-console" ? "Local demo: the verification link was printed in the backend terminal. No email was sent. Your current email stays unchanged until confirmation." : "A verification link was sent to your new inbox. Your current email stays unchanged until confirmation.", pendingEmail: email });
 }));
 
-router.delete("/email", protect, limit, handle(async (req, res) => {
+router.delete("/email", protect, handle(async (req, res) => {
   const changed = await User.updateOne({ _id: req.user._id, tokenVersion: req.user.tokenVersion || 0 }, { $unset: emailChangeFields });
   if (!changed.matchedCount) fail(409, "Your account changed. Log in again.");
   res.json({ message: "Email change cancelled. Your current email is unchanged." });
 }));
 
 // The link is a one-time proof of access to the new inbox. GET never consumes it.
-router.post("/email/confirm", limit, handle(async (req, res) => {
+router.post("/email/confirm", handle(async (req, res) => {
   const token = req.body?.token;
   if (typeof token !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(token)) fail(400, "Verification link is invalid or expired");
   const hash = crypto.createHash("sha256").update(token).digest("hex");
@@ -96,6 +100,7 @@ router.post("/email/confirm", limit, handle(async (req, res) => {
   const changed = await User.findOneAndUpdate({ _id: user._id, emailChangeTokenHash: hash, emailChangeExpiresAt: { $gt: new Date() } }, { $set: { email: user.pendingEmail, emailVerifiedAt: new Date() }, $inc: { tokenVersion: 1 }, $unset: { ...emailChangeFields, ...resetFields } });
   if (!changed) fail(400, "Verification link is invalid or expired");
   disconnectUser(user._id);
+  await revokeUserSessions(user._id); clearSessionCookie(res);
   res.json({ message: "New email verified and saved. All devices are signed out; log in with your new email.", signedOut: true });
 }));
 

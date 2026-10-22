@@ -5,6 +5,35 @@ import { api } from "../api";
 jest.mock("../api", () => ({ api: jest.fn() }));
 beforeEach(() => api.mockReset());
 
+test("saves an incomplete brief without publishing and restores its custom field and milestones", async () => {
+  const saved = jest.fn();
+  api.mockImplementation(path => Promise.resolve(path === "/project-drafts" ? { draft: { _id: "draft-1", __v: 0, state: "draft" } } : {}));
+  const { unmount } = render(<ProjectForm onClose={() => {}} onCreated={() => {}} onSaved={saved} />);
+  fireEvent.change(screen.getByLabelText("Category"), { target: { value: "Other" } });
+  fireEvent.change(screen.getByPlaceholderText(/Architecture/), { target: { value: "Marine education" } });
+  fireEvent.change(screen.getByPlaceholderText(/initial concepts/i), { target: { value: "Research notes" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save draft and close" }));
+  await waitFor(() => expect(saved).toHaveBeenCalledTimes(1));
+  const form = JSON.parse(api.mock.calls.find(([path]) => path === "/project-drafts")[1].body).form;
+  expect(form.description).toBe("");
+  expect(api.mock.calls.some(([path]) => path === "/projects/create")).toBe(false);
+  unmount();
+  render(<ProjectForm initialDraft={{ _id: "draft-1", __v: 0, state: "draft", form }} onClose={() => {}} onCreated={() => {}} />);
+  expect(screen.getByDisplayValue("Marine education")).toBeInTheDocument();
+  expect(screen.getByDisplayValue("Research notes")).toBeInTheDocument();
+});
+
+test("failed draft saving keeps entered work visible and does not close the dialog", async () => {
+  const saved = jest.fn();
+  api.mockImplementation(path => path === "/project-drafts" ? Promise.reject(new Error("Connection lost")) : Promise.resolve({}));
+  render(<ProjectForm onClose={() => {}} onCreated={() => {}} onSaved={saved} />);
+  fireEvent.change(screen.getByPlaceholderText(/brand identity refresh/i), { target: { value: "Keep this work" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save draft and close" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Connection lost");
+  expect(screen.getByDisplayValue("Keep this work")).toBeInTheDocument();
+  expect(saved).not.toHaveBeenCalled();
+});
+
 test("project dialog keeps keyboard focus and returns it after closing", () => {
   api.mockResolvedValue({});
   const trigger = document.createElement("button");

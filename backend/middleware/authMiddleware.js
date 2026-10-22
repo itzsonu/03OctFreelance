@@ -1,37 +1,21 @@
-const jwt = require("jsonwebtoken");
-const User = require("../models/User");
+const { readSession, csrfValid, clearSessionCookie } = require("../sessions");
+const { limitUser } = require("../abuseProtection");
 
 const protect = async (req, res, next) => {
   try {
-    const authHeader = req.headers.authorization;
-
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({
-        message: "Not authorized, no token",
-      });
-    }
-
-    const token = authHeader.split(" ")[1];
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-    req.user = await User.findById(decoded.id).select("-password");
-
-    if (!req.user) {
-      return res.status(401).json({
-        message: "User not found",
-      });
-    }
-
-    if ((decoded.version || 0) !== (req.user.tokenVersion || 0)) {
+    if (req.authSession) return next();
+    const auth = await readSession(req);
+    if (!auth) {
+      clearSessionCookie(res);
       return res.status(401).json({ message: "Session expired. Please log in again." });
     }
-
+    if (!["GET", "HEAD", "OPTIONS"].includes(req.method) && !csrfValid(req, auth.token)) return res.status(403).json({ code: "CSRF_INVALID", message: "Session protection changed. Refresh the page before trying again." });
+    req.user = auth.user;
+    req.authSession = auth.session;
+    if (!await limitUser(req, res)) return;
     next();
   } catch (error) {
-    return res.status(401).json({
-      message: "Not authorized, token failed",
-    });
+    return res.status(503).json({ message: "Session service is temporarily unavailable. Please try later." });
   }
 };
 

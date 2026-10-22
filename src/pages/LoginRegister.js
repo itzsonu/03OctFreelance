@@ -26,10 +26,8 @@ export default function LoginRegister({ adminOnly = false }) {
         setSuccess("Account created. Log in to continue.");
       } else {
         const data = await api("/auth/login", { method: "POST", body: JSON.stringify({ email: form.email.trim(), password: form.password, role }) });
-        localStorage.setItem("token", data.token);
-        localStorage.setItem("user", JSON.stringify(data.user));
         const projectId = search.get("project");
-        navigate(data.user.role === "admin" ? "/admin/cases" : data.user.role === "client" ? "/client-dashboard" : projectId && /^[a-f0-9]{24}$/i.test(projectId) ? `/freelancer-dashboard?project=${projectId}` : "/freelancer-dashboard", { replace: true });
+        navigate(data.user.role === "admin" ? "/admin/overview" : data.user.role === "client" ? "/client-dashboard" : projectId && /^[a-f0-9]{24}$/i.test(projectId) ? `/freelancer-dashboard?project=${projectId}` : "/freelancer-dashboard", { replace: true });
       }
     } catch (err) { setError(err.message || "Unable to connect. Check that the server is running."); }
     finally { setBusy(false); }

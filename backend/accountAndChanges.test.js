@@ -3,7 +3,7 @@ const assert = require("node:assert/strict");
 const crypto = require("node:crypto");
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
-const jwt = require("jsonwebtoken");
+const { testSession, authHeaders, responseAuth } = require("./testSession");
 const User = require("./models/User");
 const Project = require("./models/Project");
 const { buildMilestones } = require("./workflow");
@@ -37,10 +37,10 @@ test("mutual project amendments and account security with real MongoDB", async t
     const hash = await bcrypt.hash(password, 4);
     async function person(role = "client") {
       const user = await User.create({ name: `${role} ${++sequence}`, email: `${role}${sequence}@example.test`, password: hash, role });
-      return { id: String(user._id), email: user.email, role, token: jwt.sign({ id: user._id, role, version: 0 }, process.env.JWT_SECRET, { expiresIn: "1h" }) };
+      return { id: String(user._id), email: user.email, role, token: await testSession(user) };
     }
     async function call(method, path, user, body, expected = 200) {
-      const result = await fetch(base + path, { method, headers: { "Content-Type": "application/json", ...(user ? { Authorization: `Bearer ${user.token}` } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) });
+      const result = await fetch(base + path, { method, headers: { "Content-Type": "application/json", ...authHeaders(user?.token) }, ...(body ? { body: JSON.stringify(body) } : {}) });
       const data = await result.json();
       assert.equal(result.status, expected, `${method} ${path}: ${JSON.stringify(data)}`);
       return data;
@@ -106,7 +106,7 @@ test("mutual project amendments and account security with real MongoDB", async t
       await mutate(project, `changes/${sent.project.pendingAmendment}/respond`, freelancer, { action: "withdraw", response: "I withdraw these changes and will keep the original plan." });
       sent = await mutate(project, "changes", client, { reason: "Consider the proposed revised delivery plan.", terms });
       const version = await currentVersion(project._id);
-      const results = await Promise.all(["accept", "decline"].map(action => fetch(`${base}/projects/${project._id}/changes/${sent.project.pendingAmendment}/respond`, { method: "POST", headers: { Authorization: `Bearer ${freelancer.token}`, "Content-Type": "application/json" }, body: JSON.stringify({ version, action, response: "My decision on the proposed new agreement." }) })));
+      const results = await Promise.all(["accept", "decline"].map(action => fetch(`${base}/projects/${project._id}/changes/${sent.project.pendingAmendment}/respond`, { method: "POST", headers: { ...authHeaders(freelancer.token), "Content-Type": "application/json" }, body: JSON.stringify({ version, action, response: "My decision on the proposed new agreement." }) })));
       assert.deepEqual(results.map(result => result.status).sort(), [200, 409]);
       const stored = await Project.findById(project._id);
       assert.equal(stored.amendments.length, 2);
@@ -128,7 +128,7 @@ test("mutual project amendments and account security with real MongoDB", async t
       assert.equal(stored.passwordResetTokenHash, undefined);
       assert.equal(stored.emailChangeTokenHash, undefined);
       const login = await call("POST", "/auth/login", null, { email: user.email, password: "new-password-456", role: user.role });
-      assert.ok(login.token);
+      assert.ok(login.csrfToken); assert.equal(login.token, undefined);
     });
 
     await t.test("email is unchanged before verification; confirmation is single-use and revokes every session", async () => {
@@ -170,9 +170,9 @@ test("mutual project amendments and account security with real MongoDB", async t
 
     await t.test("logout-all revokes two devices, pending links and existing live connections", async () => {
       const user = await person();
-      const second = { ...user, token: jwt.sign({ id: user.id, role: user.role, version: 0 }, process.env.JWT_SECRET) };
+      const second = { ...user, token: await testSession(await User.findById(user.id)) };
       const controller = new AbortController();
-      const stream = await originalFetch(`${base}/updates`, { headers: { Authorization: `Bearer ${second.token}` }, signal: controller.signal });
+      const stream = await originalFetch(`${base}/updates`, { headers: authHeaders(second.token), signal: controller.signal });
       const reader = stream.body.getReader();
       await reader.read();
       await call("POST", "/account/email", user, { currentPassword: password, email: `logout${sequence}@example.test` });

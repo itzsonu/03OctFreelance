@@ -1,3 +1,4 @@
+const { saveAttachments } = require("../attachmentStorage");
 const express = require("express");
 const mongoose = require("mongoose");
 const Project = require("../models/Project");
@@ -8,7 +9,8 @@ const Message = require("../models/Message");
 const { protect } = require("../middleware/authMiddleware");
 const { publishProject } = require("../liveUpdates");
 const { notifyUser } = require("../notifications");
-const { parseFiles, validateFile, storeFile, readFile, removeFile } = require("../fileStorage");
+const { parseFiles, readFile } = require("../fileStorage");
+const { pagination, listResponse } = require("../pagination");
 
 const router = express.Router();
 router.use(protect);
@@ -18,31 +20,12 @@ async function participant(project, user) {
   return String(project.client) === userId || String(project.freelancer || "") === userId;
 }
 
-async function saveAttachments(project, user, files) {
-  const saved = [];
-  try {
-    for (const file of files || []) {
-      if (!validateFile(file)) {
-        const error = new Error("Unsupported or invalid file content");
-        error.status = 400;
-        throw error;
-      }
-      const stored = await storeFile(file);
-      try { saved.push(await Attachment.create({ project: project._id, uploader: user._id, ...stored })); }
-      catch (error) { await removeFile(stored.storageKey); throw error; }
-    }
-    return saved;
-  } catch (error) {
-    await Promise.all(saved.map(item => removeFile(item.storageKey)));
-    if (saved.length) await Attachment.deleteMany({ _id: { $in: saved.map(item => item._id) } });
-    throw error;
-  }
-}
 
 router.get("/inbox", async (req, res) => {
   try {
+    const paging = pagination(req.query);
     const filter = req.user.role === "client" ? { client: req.user._id, freelancer: { $ne: null } } : { freelancer: req.user._id };
-    const projects = await Project.find(filter).select("title status deadline milestones client freelancer updatedAt").sort({ updatedAt: -1 }).lean();
+    const projects = await Project.find(filter).select("title status deadline milestones.status client freelancer updatedAt").sort({ updatedAt: -1, _id: -1 }).skip(paging.skip).limit(paging.pageSize).lean();
     const entries = await Promise.all(projects.map(async project => {
       const application = await Application.findOne({ project: project._id, freelancer: project.freelancer, status: "ACCEPTED" }).select("_id").lean();
       const unreadCount = application ? await Message.countDocuments({ application: application._id, sender: { $ne: req.user._id }, readBy: { $ne: req.user._id } }) : 0;
@@ -60,9 +43,9 @@ router.get("/inbox", async (req, res) => {
         updatedAt: project.updatedAt,
       };
     }));
-    res.json(entries);
+    listResponse(res, entries, await Project.countDocuments(filter), paging);
   } catch (error) {
-    res.status(500).json({ message: "Unable to load project inbox" });
+    res.status(error.status || 500).json({ message: error.status ? error.message : "Unable to load project inbox" });
   }
 });
 

@@ -1,21 +1,14 @@
-import React, { useEffect, useState } from "react";
+import React from "react";
 import { Link } from "react-router-dom";
-import { api, currentUser } from "../api";
+import { currentUser } from "../api";
 import Shell from "../components/Shell";
+import Pagination from "../components/Pagination";
+import usePagedList from "../usePagedList";
 
 export default function WorkroomInbox() {
   const role = currentUser()?.role;
-  const [entries, setEntries] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    let current = true;
-    api("/workrooms/inbox").then(data => { if (current) setEntries(data); })
-      .catch(err => { if (current) setError(err.message); })
-      .finally(() => { if (current) setLoading(false); });
-    return () => { current = false; };
-  }, []);
+  const listing = usePagedList("/workrooms/inbox");
+  const { items: entries, loading, error } = listing;
 
   return <Shell role={role} eyebrow="PROJECT WORKROOMS" title="Project inbox" subtitle="One private room for each hired project, including its conversation and delivery history.">
     {error && <div className="message error" role="alert">{error}</div>}
@@ -27,5 +20,6 @@ export default function WorkroomInbox() {
         <Link className="button button-dark" to={`/milestones/${entry.projectId}`}>Open workroom ↗</Link>
       </article>)}
     </section> : <div className="empty-state"><span>▤</span><h3>No project conversations yet</h3><p>Hired projects will appear here with their shared milestones and messages.</p><Link className="button button-outline" to={role === "client" ? "/client-dashboard" : "/freelancer-dashboard"}>Back to workspace</Link></div>}
+    <Pagination {...listing} onPage={listing.setPage} label="workrooms" />
   </Shell>;
 }

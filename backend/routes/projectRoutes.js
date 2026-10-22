@@ -1,8 +1,8 @@
+const { saveAttachments, discardAttachments } = require("../attachmentStorage");
 const express = require("express");
 const mongoose = require("mongoose");
 const Project = require("../models/Project");
 const Application = require("../models/Application");
-const Attachment = require("../models/Attachment");
 const User = require("../models/User");
 const { protect, allowRoles } = require("../middleware/authMiddleware");
 const { unlockReadyMilestones } = require("../workflow");
@@ -13,42 +13,20 @@ const { suggestSkills } = require("../skillSuggestions");
 const { generateAiMilestones, validatePlanInput } = require("../aiPlanner");
 const { publishProject, publishMarketplace } = require("../liveUpdates");
 const { notifyUser } = require("../notifications");
-const { parseFiles, validateFile, storeFile, removeFile } = require("../fileStorage");
+const { parseFiles } = require("../fileStorage");
 const { JOB_CATEGORIES } = require("../projectCategories");
 const { normalizeProjectDraft } = require("../projectDraft");
+const { pagination, listResponse } = require("../pagination");
+const { publicStages, ownerLookup, hiringAvailable } = require("../moderation");
+const { readSession } = require("../sessions");
 
 const router = express.Router();
 router.use(require("./projectLifecycleRoutes"));
 router.use(require("./projectChangeRoutes"));
-const withAnalytics = project => ({ ...project.toObject(), insights: projectInsights(project), outlook: projectOutlook(project) });
+const withAnalytics = project => ({ ...(project.toObject ? project.toObject() : project), insights: projectInsights(project), outlook: projectOutlook(project) });
 const aiPlanCooldown = new Map();
 const AI_PLAN_COOLDOWN_MS = 60 * 1000;
 
-async function saveAttachments(project, user, files) {
-  const saved = [];
-  try {
-    for (const file of files || []) {
-      if (!validateFile(file)) {
-        const error = new Error("Unsupported or invalid file content");
-        error.status = 400;
-        throw error;
-      }
-      const stored = await storeFile(file);
-      try {
-        const attachment = await Attachment.create({ project: project._id, uploader: user._id, ...stored });
-        saved.push(attachment);
-      } catch (error) {
-        await removeFile(stored.storageKey);
-        throw error;
-      }
-    }
-    return saved;
-  } catch (error) {
-    await Promise.all(saved.map(item => removeFile(item.storageKey)));
-    if (saved.length) await Attachment.deleteMany({ _id: { $in: saved.map(item => item._id) } });
-    throw error;
-  }
-}
 
 const attachmentView = attachment => ({
   id: attachment._id,
@@ -119,16 +97,14 @@ router.get("/public", async (req, res) => {
     if (minBudget !== null || maxBudget !== null) filter.budget = { ...(minBudget !== null ? { $gte: minBudget } : {}), ...(maxBudget !== null ? { $lte: maxBudget } : {}) };
     if (deadlineFrom || deadlineTo) filter.deadline = { ...(deadlineFrom ? { $gte: deadlineFrom } : {}), ...(deadlineTo ? { $lte: deadlineTo } : {}) };
     const sortOptions = { newest: { createdAt: -1 }, oldest: { createdAt: 1 }, "budget-high": { budget: -1 }, "budget-low": { budget: 1 }, "deadline-soon": { deadline: 1 } };
-    const [projects, total] = await Promise.all([
-      Project.find(filter)
-        .select("title category customCategory description requiredSkills budget deadline createdAt")
-        .sort(sortOptions[sort])
-        .skip((page - 1) * pageSize)
-        .limit(pageSize)
-        .lean(),
-      Project.countDocuments(filter),
-    ]);
-    res.set("Cache-Control", "public, max-age=30");
+    const [result] = await Project.aggregate([...publicStages(filter), { $facet: { projects: [{ $sort: { ...sortOptions[sort], _id: sort === "oldest" ? 1 : -1 } }, { $skip: (page - 1) * pageSize }, { $limit: pageSize }, { $project: { title: 1, category: 1, customCategory: 1, description: 1, requiredSkills: 1, budget: 1, deadline: 1, createdAt: 1 } }], total: [{ $count: "count" }] } }]);
+    const projects = result.projects; const total = result.total[0]?.count || 0;
+    const auth = req.headers.cookie ? await readSession(req, false) : null;
+    if (auth?.user.role === "freelancer" && projects.length) {
+      const own = await Application.find({ freelancer: auth.user._id, project: { $in: projects.map(item => item._id) } }).select("project status").lean();
+      const statuses = new Map(own.map(item => [String(item.project), item.status]));
+      projects.forEach(item => { item.applicationStatus = statuses.get(String(item._id)) || null; });
+    }
     res.json({ projects: projects.map(project => ({ ...project, category: project.category || "Other" })), total, page, pageSize, pages: Math.ceil(total / pageSize) });
   } catch (error) {
     if (error.message.startsWith("Invalid ") || error.message.includes("cannot exceed") || error.message.includes("cannot be after")) return res.status(400).json({ message: error.message });
@@ -138,12 +114,12 @@ router.get("/public", async (req, res) => {
 
 router.get("/public/:projectId", async (req, res) => {
   if (!mongoose.Types.ObjectId.isValid(req.params.projectId)) return res.status(400).json({ message: "Invalid project ID" });
-  const project = await Project.findOne({ _id: req.params.projectId, status: "Open" })
+  const project = await Project.findOne({ _id: req.params.projectId, status: "Open", moderationHidden: { $ne: true } })
     .select("title category customCategory description requiredSkills budget deadline milestones.title milestones.description milestones.payment milestones.dueDate createdAt client")
     .lean();
   if (!project) return res.status(404).json({ message: "Project is no longer open" });
-  const client = project.client ? await User.findById(project.client).select("name company.name company.overview").lean() : null;
-  res.set("Cache-Control", "public, max-age=30");
+  const client = project.client ? await User.findById(project.client).select("name company.name company.overview suspended").lean() : null;
+  if (!client || client.suspended) return res.status(404).json({ message: "Project is no longer open" });
   res.json({
     id: project._id,
     title: project.title,
@@ -166,8 +142,8 @@ router.get("/saved", protect, allowRoles("freelancer"), async (req, res) => {
 
 router.put("/saved/:projectId", protect, allowRoles("freelancer"), async (req, res) => {
   if (!mongoose.Types.ObjectId.isValid(req.params.projectId)) return res.status(400).json({ message: "Invalid project ID" });
-  const project = await Project.findById(req.params.projectId).select("status").lean();
-  if (!project || project.status !== "Open") return res.status(409).json({ message: "This project is no longer open" });
+  const project = await Project.findById(req.params.projectId).select("status client moderationHidden").lean();
+  if (!project || project.status !== "Open" || !await hiringAvailable(project)) return res.status(409).json({ message: "This project is no longer open" });
   await User.updateOne({ _id: req.user._id }, { $addToSet: { savedProjects: project._id } });
   res.json({ saved: true });
 });
@@ -235,28 +211,35 @@ router.post("/create", protect, allowRoles("client"), async (req, res) => {
 
 router.get("/all", protect, async (req, res) => {
   try {
-    const filter = req.user.role === "client"
-      ? { client: req.user._id }
-      : { $or: [{ status: "Open" }, { freelancer: req.user._id }] };
-    const projects = await Project.find(filter)
-      .populate("client", "name")
-      .populate("freelancer", "name")
-      .sort({ createdAt: -1 });
-
-    res.json(projects.map(withAnalytics));
+    const paging = pagination(req.query);
+    if (req.query.view && !["assigned", "saved"].includes(req.query.view)) return res.status(400).json({ message: "Invalid project view" });
+    const owner = req.user._id; const saved = req.user.savedProjects || [];
+    const stages = req.user.role === "client" ? [{ $match: { client: owner } }] : [ownerLookup(), { $match: { $or: [{ freelancer: owner }, { status: "Open", moderationHidden: { $ne: true }, "availableOwner.0": { $exists: true } }] } }];
+    const view = req.query.view === "assigned" ? [{ $match: { freelancer: owner } }] : req.query.view === "saved" ? [{ $match: { _id: { $in: saved }, status: "Open", moderationHidden: { $ne: true }, "availableOwner.0": { $exists: true } } }] : [];
+    const [result] = await Project.aggregate([...stages, { $facet: {
+      items: [...view, { $sort: { createdAt: -1, _id: -1 } }, { $skip: paging.skip }, { $limit: paging.pageSize }, { $project: { title: 1, description: 1, category: 1, customCategory: 1, requiredSkills: 1, status: 1, client: 1, freelancer: 1, budget: 1, deadline: 1, createdAt: 1, updatedAt: 1, moderationHidden: 1, moderationReason: 1, milestones: { $map: { input: "$milestones", as: "step", in: { _id: "$$step._id", title: "$$step.title", status: "$$step.status", dueDate: "$$step.dueDate", approvedAt: "$$step.approvedAt" } } } } }],
+      total: [...view, { $count: "count" }],
+      summary: [{ $group: { _id: null, open: { $sum: { $cond: [{ $eq: ["$status", "Open"] }, 1, 0] } }, assigned: { $sum: { $cond: [{ $eq: ["$freelancer", owner] }, 1, 0] } }, active: { $sum: { $cond: [{ $and: [{ $eq: ["$freelancer", owner] }, { $eq: ["$status", "In Progress"] }] }, 1, 0] } }, saved: { $sum: { $cond: [{ $and: [{ $in: ["$_id", saved] }, { $eq: ["$status", "Open"] }] }, 1, 0] } } } }],
+    } }]);
+    const projects = await Project.populate(result.items, [{ path: "client", select: "name" }, { path: "freelancer", select: "name" }]);
+    listResponse(res, projects.map(withAnalytics), result.total[0]?.count || 0, paging, { summary: result.summary[0] || { open: 0, assigned: 0, active: 0, saved: 0 } });
   } catch (error) {
-    res.status(error.name === "VersionError" ? 409 : 500).json({ message: error.name === "VersionError" ? "Project changed. Reload before trying again." : "Server error" });
+    res.status(error.status || 500).json({ message: error.status ? error.message : "Unable to load projects" });
   }
 });
 
 router.get("/mine", protect, allowRoles("client"), async (req, res) => {
   try {
-    const projects = await Project.find({ client: req.user._id })
+    const paging = pagination(req.query);
+    if (req.query.view && req.query.view !== "invitable") return res.status(400).json({ message: "Invalid project view" });
+    const filter = { client: req.user._id, ...(req.query.view === "invitable" ? { status: "Open", freelancer: null, moderationHidden: { $ne: true } } : {}) };
+    const projects = await Project.find(filter)
       .populate("freelancer", "name")
-      .sort({ createdAt: -1 });
-    res.json(projects.map(withAnalytics));
+      .sort({ createdAt: -1, _id: -1 }).skip(paging.skip).limit(paging.pageSize);
+    const [summary] = await Project.aggregate([{ $match: filter }, { $group: { _id: null, total: { $sum: 1 }, active: { $sum: { $cond: [{ $eq: ["$status", "In Progress"] }, 1, 0] } }, waiting: { $sum: { $cond: [{ $eq: ["$status", "In Progress"] }, { $size: { $filter: { input: { $ifNull: ["$milestones", []] }, as: "step", cond: { $eq: ["$$step.status", "submitted"] } } } }, 0] } } } }]);
+    listResponse(res, projects.map(withAnalytics), summary?.total || 0, paging, { summary: summary || { total: 0, active: 0, waiting: 0 } });
   } catch (error) {
-    res.status(error.name === "VersionError" ? 409 : 500).json({ message: error.name === "VersionError" ? "Project changed. Reload before trying again." : "Server error" });
+    res.status(error.status || 500).json({ message: error.status ? error.message : "Unable to load projects" });
   }
 });
 
@@ -372,12 +355,11 @@ router.post(
 
       try { await project.save(); }
       catch (error) {
-        await Promise.all(attachments.map(item => removeFile(item.storageKey)));
-        if (attachments.length) await Attachment.deleteMany({ _id: { $in: attachments.map(item => item._id) } });
+        await discardAttachments(attachments);
         throw error;
       }
       publishProject(project);
-      await notifyUser(project.client, "milestone", "Work submitted for review", `${req.user.name || "Your freelancer"} submitted ${milestone.title}.`, `/milestones/${project._id}`);
+      await notifyUser(project.client, "milestone", "Work submitted for review", `${req.user.name || "Your freelancer"} submitted ${milestone.title}.`, `/milestones/${project._id}`, "submissions");
 
       res.json({
         message: "Milestone submitted successfully",
@@ -502,7 +484,7 @@ router.post(
       project.activity.push({ type: "revision_requested", actor: req.user._id, actorName: req.user.name || "Client", milestoneId: milestone._id, milestoneTitle: milestone.title, note: feedback });
       await project.save();
       publishProject(project);
-      await notifyUser(project.freelancer, "milestone", "Revision requested", `The client requested changes to ${milestone.title}.`, `/milestones/${project._id}`);
+      await notifyUser(project.freelancer, "milestone", "Revision requested", `The client requested changes to ${milestone.title}.`, `/milestones/${project._id}`, "revisions");
       res.json({ message: "Revision requested", project });
     } catch (error) {
       res.status(error.name === "VersionError" ? 409 : 500).json({ message: error.name === "VersionError" ? "Project changed. Reload before trying again." : "Server error" });

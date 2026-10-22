@@ -7,6 +7,7 @@ const User = require("../models/User");
 const { protect, allowRoles } = require("../middleware/authMiddleware");
 const { publishUser } = require("../liveUpdates");
 const { notifyUser } = require("../notifications");
+const { hiringAvailable } = require("../moderation");
 
 const router = express.Router();
 router.use(protect);
@@ -31,12 +32,12 @@ router.post("/", allowRoles("client"), async (req, res) => {
   if (!mongoose.Types.ObjectId.isValid(projectId) || !mongoose.Types.ObjectId.isValid(freelancerId)) return res.status(400).json({ message: "Select a valid project and freelancer" });
   if (cleanNote.length < 10 || cleanNote.length > 1000) return res.status(400).json({ message: "Add a personal invitation of 10–1000 characters" });
   const [project, freelancer] = await Promise.all([
-    Project.findById(projectId).select("client status freelancer title").lean(),
-    User.findById(freelancerId).select("role profile.discoverable").lean(),
+    Project.findById(projectId).select("client status freelancer title moderationHidden").lean(),
+    User.findById(freelancerId).select("role suspended profile.discoverable").lean(),
   ]);
   if (!project || project.client?.toString() !== req.user._id.toString()) return res.status(403).json({ message: "Access denied" });
-  if (project.status !== "Open" || project.freelancer) return res.status(409).json({ message: "This project is no longer open" });
-  if (!freelancer || freelancer.role !== "freelancer" || !freelancer.profile?.discoverable) return res.status(404).json({ message: "Freelancer is not available for invitations" });
+  if (project.status !== "Open" || project.freelancer || !await hiringAvailable(project)) return res.status(409).json({ message: "This project is no longer open" });
+  if (!freelancer || freelancer.suspended || freelancer.role !== "freelancer" || !freelancer.profile?.discoverable) return res.status(404).json({ message: "Freelancer is not available for invitations" });
   if (await Application.exists({ project: project._id, freelancer: freelancer._id })) return res.status(409).json({ message: "This freelancer has already applied" });
   try {
     const invitation = await Invitation.create({ project: project._id, client: req.user._id, freelancer: freelancer._id, note: cleanNote });

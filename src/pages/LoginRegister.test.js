@@ -18,7 +18,7 @@ beforeEach(() => {
 });
 
 test("admin-only login has no signup or public role controls", async () => {
-  api.mockResolvedValue({ token: "admin-token", user: { id: "admin-1", name: "Case Admin", role: "admin" } });
+  api.mockResolvedValue({ csrfToken: "csrf-test", user: { id: "admin-1", name: "Case Admin", role: "admin" } });
   render(<MemoryRouter initialEntries={["/admin/login"]}><CurrentPath /><LoginRegister adminOnly /></MemoryRouter>);
 
   expect(screen.getByRole("heading", { name: "Admin sign in" })).toBeInTheDocument();
@@ -28,7 +28,8 @@ test("admin-only login has no signup or public role controls", async () => {
   fireEvent.change(screen.getByLabelText("Password"), { target: { value: "test-only-admin-password" } });
   fireEvent.click(screen.getByRole("button", { name: /log in/i }));
 
-  await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/admin/cases"));
+  await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/admin/overview"));
   expect(api).toHaveBeenCalledWith("/auth/login", { method: "POST", body: JSON.stringify({ email: "case-admin@example.test", password: "test-only-admin-password", role: "admin" }) });
-  expect(JSON.parse(localStorage.getItem("user")).role).toBe("admin");
+  expect(localStorage.getItem("user")).toBeNull();
+  expect(localStorage.getItem("token")).toBeNull();
 });

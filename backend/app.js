@@ -1,26 +1,35 @@
 const express = require("express");
-const cors = require("cors");
 const fs = require("fs");
 const path = require("path");
 const mongoose = require("mongoose");
 const { protect } = require("./middleware/authMiddleware");
 const { subscribe } = require("./liveUpdates");
+const { requestSecurity, securityHeaders } = require("./requestSecurity");
+const { limitIp } = require("./abuseProtection");
 
 const app = express();
-app.use((req, res, next) => { res.set("Referrer-Policy", "no-referrer"); next(); });
-const allowedOrigins = (process.env.CLIENT_ORIGIN || "http://localhost:3000,http://127.0.0.1:3000")
-  .split(",").map(origin => origin.trim()).filter(Boolean);
-
-app.use((req, res, next) => {
-  const origin = req.get("origin");
-  if (!origin) return next();
-  let sameHost = false;
-  try { sameHost = new URL(origin).host === req.get("host"); } catch { /* invalid origin */ }
-  if (sameHost) return next();
-  if (!allowedOrigins.includes(origin)) return res.status(403).json({ message: "Origin not allowed" });
-  return cors({ origin })(req, res, next);
-});
+app.disable("x-powered-by");
+// Only explicitly configured proxy addresses/subnets may supply a forwarded client IP.
+if (process.env.TRUST_PROXY) {
+  if (/^(true|\d+)$/i.test(process.env.TRUST_PROXY.trim())) throw new Error("TRUST_PROXY must list trusted proxy IP addresses or subnets, not a hop count or true");
+  app.set("trust proxy", process.env.TRUST_PROXY.split(",").map(value => value.trim()).filter(Boolean));
+}
+app.use(securityHeaders);
+app.use("/api", requestSecurity);
 app.use(express.json({ limit: "100kb" }));
+app.use("/api", limitIp);
+
+app.locals.draining = false;
+app.get("/api/health/live", (req, res) => res.status(app.locals.draining ? 503 : 200).json({ status: app.locals.draining ? "draining" : "alive" }));
+app.get("/api/health/ready", async (req, res) => {
+  try {
+    if (app.locals.draining || mongoose.connection.readyState !== 1) throw new Error("not_ready");
+    await mongoose.connection.db.command({ ping: 1 }, { maxTimeMS: 2000 });
+    await require("./deployment").checkPrivateStorage();
+    res.json({ status: "ready" });
+  } catch { res.status(503).json({ status: "not_ready" }); }
+});
+app.use("/api", (req, res, next) => app.locals.draining ? res.status(503).json({ message: "Service is restarting. Please retry shortly." }) : next());
 
 app.get("/api/health", (req, res) => {
   const connected = mongoose.connection.readyState === 1;
@@ -30,6 +39,9 @@ app.get("/api/health", (req, res) => {
 app.get("/api/updates", protect, subscribe);
 
 app.use("/api/account", require("./routes/accountRoutes"));
+app.use("/api/account", require("./routes/supportRoutes").accountRouter);
+app.use("/api/support", require("./routes/supportRoutes").publicRouter);
+app.use("/api/project-drafts", require("./routes/projectDraftRoutes"));
 app.use("/api/auth", require("./routes/authRoutes"));
 app.use("/api/profile", require("./routes/profileRoutes"));
 app.use("/api/talent", require("./routes/talentRoutes"));

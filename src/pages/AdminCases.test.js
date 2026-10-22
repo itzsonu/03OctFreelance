@@ -26,7 +26,7 @@ beforeEach(() => {
 test("admin can read only case evidence and resolve with a recorded reason", async () => {
   let resolved = false;
   api.mockImplementation((path, options) => {
-    if (path === "/admin/cases?status=open") return Promise.resolve(resolved ? [] : [openCase]);
+    if (path.startsWith("/admin/cases?status=open")) return Promise.resolve(resolved ? [] : [openCase]);
     if (path === "/admin/cases/case-1/resolve" && options?.method === "POST") {
       resolved = true;
       return Promise.resolve({ ...detail, status: "resolved", resolution: { reason: "The evidence supports the documented delivery decision.", resolvedAt: "2026-10-01T12:00:00.000Z", admin: { name: "Case Admin" } }, history: [...detail.history, { _id: "entry-2", author: { name: "Case Admin" }, action: "resolved", text: "The evidence supports the documented delivery decision.", createdAt: "2026-10-01T12:00:00.000Z", attachments: [] }] });

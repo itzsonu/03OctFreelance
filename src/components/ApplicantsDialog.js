@@ -5,11 +5,15 @@ import TrustEvidence from "./TrustEvidence";
 import useDialogAccessibility from "../useDialogAccessibility";
 import ConversationPanel from "./ConversationPanel";
 import HiringOfferPanel from "./HiringOfferPanel";
+import Pagination from "./Pagination";
+import { readPage } from "../usePagedList";
 
 export default function ApplicantsDialog({ project, onClose, onDecision }) {
   const dialogRef = useDialogAccessibility(onClose);
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [pageInfo, setPageInfo] = useState(() => readPage([]));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [aiStatus, setAiStatus] = useState(null);
@@ -23,6 +27,7 @@ export default function ApplicantsDialog({ project, onClose, onDecision }) {
   const [budgetFilter, setBudgetFilter] = useState("");
   const [availabilityFilter, setAvailabilityFilter] = useState("");
 
+  const requestUrl = '/applications/project/'+project._id+'?page='+page+'&pageSize=20'+(shortlistedOnly ? '&shortlisted=true' : '')+(budgetFilter ? '&budget='+budgetFilter : '')+(availabilityFilter ? '&availability='+availabilityFilter : '');
   const invalidateAi = useCallback((note = "") => {
     analysisVersion.current += 1;
     setAiResult(null); setAnalyzing(false); setAiFallback(note);
@@ -33,19 +38,25 @@ export default function ApplicantsDialog({ project, onClose, onDecision }) {
     setApplications(value);
   }, [invalidateAi]);
 
+  const acceptPage = useCallback(result => {
+    const data = readPage(result, page, 20);
+    if (page > Math.max(1,data.pages)) { setPage(Math.max(1,data.pages)); return; }
+    setPageInfo(data); replaceApplicants(data.items);
+  }, [page, replaceApplicants]);
+
   useEffect(() => {
     let active = true;
     setLoading(true); setError(""); replaceApplicants([]); setAiStatus(null);
     const version = applicantsVersion.current;
-    api(`/applications/project/${project._id}`).then(result => { if (active && version === applicantsVersion.current) replaceApplicants(result); }).catch(err => { if (active && version === applicantsVersion.current) setError(err.message); }).finally(() => { if (active) setLoading(false); });
+    api(requestUrl).then(result => { if (active && version === applicantsVersion.current) acceptPage(result); }).catch(err => { if (active && version === applicantsVersion.current) setError(err.message); }).finally(() => { if (active) setLoading(false); });
     api("/applications/ai-status").then(result => { if (active) setAiStatus(result); }).catch(() => { if (active) setAiStatus({ available: false }); });
     return () => { active = false; analysisVersion.current += 1; applicantsVersion.current += 1; };
-  }, [project._id, replaceApplicants]);
+  }, [project._id, requestUrl, replaceApplicants, acceptPage]);
   useLiveUpdates(event => {
     if (event.type !== "reconnected" && !(event.type === "applications" && event.projectId === project._id)) return;
     invalidateAi();
     const version = ++applicantsVersion.current;
-    api(`/applications/project/${project._id}`).then(result => { if (version === applicantsVersion.current) replaceApplicants(result); }).catch(err => { if (version === applicantsVersion.current) setError(err.message); });
+    api(requestUrl).then(result => { if (version === applicantsVersion.current) acceptPage(result); }).catch(err => { if (version === applicantsVersion.current) setError(err.message); });
   });
 
   async function compareWithAi() {
@@ -63,7 +74,7 @@ export default function ApplicantsDialog({ project, onClose, onDecision }) {
     setBusy(true); setError("");
     try {
       await api(`/applications/${applicationId}/${action}`, { method: "PATCH" });
-      replaceApplicants(await api(`/applications/project/${project._id}`));
+      acceptPage(await api(requestUrl));
       onDecision(action);
     } catch (err) { setError(err.message); }
     finally { setBusy(false); }
@@ -74,7 +85,7 @@ export default function ApplicantsDialog({ project, onClose, onDecision }) {
     setBusy(true); setError("");
     try {
       await api(`/applications/${application._id}/shortlist`, { method: "PATCH", body: JSON.stringify({ shortlisted: !application.shortlisted }) });
-      replaceApplicants(await api(`/applications/project/${project._id}`));
+      acceptPage(await api(requestUrl));
     } catch (err) { setError(err.message); }
     finally { setBusy(false); }
   }
@@ -93,10 +104,10 @@ export default function ApplicantsDialog({ project, onClose, onDecision }) {
       <div className="dialog-heading"><div><p className="eyebrow">APPLICATIONS</p><h2 id="applicants-title">{project.title}</h2></div><button className="icon-button" onClick={onClose} aria-label="Close">×</button></div>
       {error && <p className="message error" role="alert">{error}</p>}
       {aiFallback && <p className="message" role="status">{aiFallback}</p>}
-      {loading ? <p className="empty-state">Loading proposals…</p> : sorted.length === 0 ? <p className="empty-state">No applications yet. Your project is visible to freelancers.</p> : visibleApplications.length === 0 ? <div className="empty-state"><h3>{budgetFilter || availabilityFilter ? "No applicants match these filters" : "No shortlisted applicants"}</h3><p>Adjust compatibility filters or show all applicants.</p><button className="button button-outline" onClick={() => { setShortlistedOnly(false); setBudgetFilter(""); setAvailabilityFilter(""); }}>Show all applicants</button></div> : <>
-        <div className="shortlist-toolbar"><p className="shortlist-intro">Compare each proposal’s terms, skills and verified work. Match scores are decision aids, never hiring decisions.</p><button className={`button ${shortlistedOnly ? "button-dark" : "button-outline"}`} type="button" aria-pressed={shortlistedOnly} onClick={() => setShortlistedOnly(value => !value)}>★ {shortlistedOnly ? "Show all applicants" : `Shortlisted (${applications.filter(item => item.shortlisted).length})`}</button></div>
-        <div className="form-row"><label>Budget compatibility<select value={budgetFilter} onChange={event => setBudgetFilter(event.target.value)}><option value="">All proposals</option><option value="within_budget">Within budget</option><option value="above_budget">Above budget</option><option value="unknown">Unknown budget compatibility</option></select></label><label>Applicant availability<select value={availabilityFilter} onChange={event => setAvailabilityFilter(event.target.value)}><option value="">All availability</option><option value="available">Available</option><option value="limited">Limited</option><option value="unavailable">Unavailable</option><option value="unknown">Unknown availability</option></select></label></div><p className="form-help">Budget compares the proposal price with the project budget. Availability is self-reported. These filters do not change the fit score; all applicants are shown by default.</p>
-        {project.status === "Open" && sorted.some(item => item.status === "PENDING") && <section className="ai-comparison"><div><strong>Optional AI-assisted comparison</strong><p>When you choose Compare, the project brief and pending applicants’ profile and proposal text are sent to OpenAI for text similarity. That text may include personal details. Names and email addresses are not added separately. The result is a ranking aid, not a hiring decision.</p></div>{aiStatus?.available ? <button className="button button-outline" type="button" disabled={analyzing || busy || sorted.filter(item => item.status === "PENDING").length > aiStatus.maxCandidates} onClick={compareWithAi}>{analyzing ? "Comparing…" : "Compare with AI"}</button> : <small>AI comparison is not configured in this demo. The regular shortlist is available below.</small>}{aiResult && <p className="ai-explanation">{aiResult.explanation}</p>}</section>}
+      {loading ? <p className="empty-state">Loading proposals…</p> : (pageInfo.summary?.all ?? sorted.length) === 0 ? <p className="empty-state">No applications yet. Your project is visible to freelancers.</p> : visibleApplications.length === 0 ? <div className="empty-state"><h3>{budgetFilter || availabilityFilter ? "No applicants match these filters" : "No shortlisted applicants"}</h3><p>Adjust compatibility filters or show all applicants.</p><button className="button button-outline" onClick={() => { setShortlistedOnly(false); setBudgetFilter(""); setAvailabilityFilter(""); setPage(1); }}>Show all applicants</button></div> : <>
+        <div className="shortlist-toolbar"><p className="shortlist-intro">Compare each proposal’s terms, skills and verified work. Match scores are decision aids, never hiring decisions.</p><button className={`button ${shortlistedOnly ? "button-dark" : "button-outline"}`} type="button" aria-pressed={shortlistedOnly} onClick={() => { setShortlistedOnly(value => !value); setPage(1); }}>★ {shortlistedOnly ? "Show all applicants" : `Shortlisted (${(pageInfo.summary?.shortlisted ?? applications.filter(item => item.shortlisted).length)})`}</button></div>
+        <div className="form-row"><label>Budget compatibility<select value={budgetFilter} onChange={event => { setBudgetFilter(event.target.value); setPage(1); }}><option value="">All proposals</option><option value="within_budget">Within budget</option><option value="above_budget">Above budget</option><option value="unknown">Unknown budget compatibility</option></select></label><label>Applicant availability<select value={availabilityFilter} onChange={event => { setAvailabilityFilter(event.target.value); setPage(1); }}><option value="">All availability</option><option value="available">Available</option><option value="limited">Limited</option><option value="unavailable">Unavailable</option><option value="unknown">Unknown availability</option></select></label></div><p className="form-help">Budget compares the proposal price with the project budget. Availability is self-reported. These filters do not change the fit score; all applicants are shown by default.</p>
+        {project.status === "Open" && sorted.some(item => item.status === "PENDING") && <section className="ai-comparison"><div><strong>Optional AI-assisted comparison</strong><p>When you choose Compare, the project brief and pending applicants’ profile and proposal text are sent to OpenAI for text similarity. That text may include personal details. Names and email addresses are not added separately. The result is a ranking aid, not a hiring decision.</p></div>{aiStatus?.available ? <button className="button button-outline" type="button" disabled={analyzing || busy || (pageInfo.summary?.pending ?? sorted.filter(item => item.status === "PENDING").length) > aiStatus.maxCandidates} onClick={compareWithAi}>{analyzing ? "Comparing…" : "Compare with AI"}</button> : <small>AI comparison is not configured in this demo. The regular shortlist is available below.</small>}{aiResult && <p className="ai-explanation">{aiResult.explanation}</p>}</section>}
         <div className="application-list">{visibleApplications.map(application => {
           const freelancer = application.freelancer || {};
           const profile = freelancer.profile || {};
@@ -108,7 +119,7 @@ export default function ApplicantsDialog({ project, onClose, onDecision }) {
             {ai && <div className="ai-result"><strong>AI-assisted rank #{ai.rank} · {ai.score}/100</strong><span>Text similarity {ai.semanticScore}/100 · Regular fit {ai.ruleScore}/100</span><small>Listed skills: {ai.matchedSkills?.length ? ai.matchedSkills.join(", ") : "none matched"}. {ai.missingSkills?.length ? `Not listed: ${ai.missingSkills.join(", ")}.` : ""} Trust: {ai.evidence?.score == null ? "new account" : `${ai.evidence.scoredMilestones ?? ai.evidence.approvedMilestones} of ${ai.evidence.approvedMilestones} approvals counted`}.</small></div>}
             <p className="form-help">Budget: {match?.compatibility?.budget === "within_budget" ? "Within budget" : match?.compatibility?.budget === "above_budget" ? `Above budget by ₹${Number(match.compatibility.budgetDifference).toLocaleString("en-IN")}` : "Unknown"} · Availability: {({ available: "Available", limited: "Limited", unavailable: "Unavailable" })[match?.compatibility?.availability] || "Unknown"}</p>
             {match && <div className="match-summary"><div><strong>Comparison score: {match.score}/100</strong><span>{match.matchedSkills?.length || 0} of {(match.matchedSkills?.length || 0) + (match.missingSkills?.length || 0)} listed skills</span></div><div className="match-track"><span style={{ width: `${match.score}%` }} /></div><p>{match.matchedSkills?.length ? `Matches: ${match.matchedSkills.join(", ")}.` : "No listed skills match yet."} {match.missingSkills?.length ? `Not listed: ${match.missingSkills.join(", ")}.` : ""}</p><p>Context relevance: {match.contextScore == null ? "Not available" : `${match.contextScore}/100 (profile ${match.contextProfileScore}, proposal ${match.contextProposalScore})`}{match.contextMatchedTerms?.length ? ` · Shared terms: ${match.contextMatchedTerms.join(", ")}` : " · No shared context terms yet"}.</p><small>{match.yearsExperience || 0} years self-reported experience · {match.factorScores?.verifiedTrust == null ? "Verified trust not scored (no platform history)" : `Verified trust ${match.factorScores.verifiedTrust}/100`} · 65% skill, experience and verified-work fit + 35% profile-led context. Comparison aid, not a probability or hiring decision.</small></div>}
-            <div className="applicant-profile"><div><span>EXPERIENCE</span><strong>{profile.experienceYears || 0} years</strong></div><div><span>SKILLS</span><div className="skill-list">{profile.skills?.length ? profile.skills.map(skill => <span className="skill-chip" key={skill}>{skill}</span>) : <small>Not added yet</small>}</div></div>{profile.bio && <p>{profile.bio}</p>}{profile.portfolioUrl && <a href={profile.portfolioUrl} target="_blank" rel="noreferrer">View portfolio ↗</a>}</div>
+            {freelancer.suspended && <p className="message error">This account is suspended. New hiring actions are blocked.</p>}<div className="applicant-profile"><div><span>EXPERIENCE</span><strong>{profile.experienceYears || 0} years</strong></div><div><span>SKILLS</span><div className="skill-list">{profile.skills?.length ? profile.skills.map(skill => <span className="skill-chip" key={skill}>{skill}</span>) : <small>Not added yet</small>}</div></div>{profile.bio && <p>{profile.bio}</p>}{profile.portfolioUrl && <a href={profile.portfolioUrl} target="_blank" rel="noreferrer">View portfolio ↗</a>}</div>
             {trust && <div className="trust-summary"><div><span>TRUST SCORE</span><strong>{trust.score === null ? trust.label : `${trust.score}/100`}</strong></div><p>{trust.approvedMilestones} approved milestones · {trust.completedProjects} completed projects · {trust.revisionRequests} revision requests</p><TrustEvidence trust={trust} /><small>{trust.score === null ? "No verified work yet; this does not lower the fit estimate." : `${trust.label}. Based only on approved milestones and revision history.`}</small></div>}
             <div className="proposal-box"><span>PROPOSAL{application.proposalRevision > 1 ? ` · REVISION ${application.proposalRevision}` : ""}</span><p>{application.proposal || "Legacy text-only proposal"}</p><div className="proposal-terms"><span>Proposed price <strong>{application.proposedPrice == null ? "Not provided" : `₹${Number(application.proposedPrice).toLocaleString("en-IN")}`}</strong></span><span>Delivery estimate <strong>{application.deliveryEstimateDays == null ? "Not provided" : `${application.deliveryEstimateDays} days`}</strong></span></div>{application.portfolioLinks?.map(link => <a key={link} href={link} target="_blank" rel="noreferrer">Relevant work ↗</a>)}{application.answers?.map((item, index) => <p className="proposal-answer" key={index}><strong>{item.question}</strong><br />{item.answer}</p>)}</div>
             <HiringOfferPanel application={application} project={project} role="client" onChange={updated => replaceApplicants(current => current.map(item => item._id === updated._id ? { ...item, ...updated, freelancer: item.freelancer } : item))} onAssigned={() => { onDecision("agreed"); onClose(); }} />
@@ -118,6 +129,7 @@ export default function ApplicantsDialog({ project, onClose, onDecision }) {
           </article>;
         })}</div>
       </>}
+      <Pagination page={page} pages={pageInfo.pages} total={pageInfo.total} loading={loading} onPage={setPage} label="applicants" />
     </div>
   </div>;
 }

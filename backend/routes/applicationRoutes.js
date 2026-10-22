@@ -11,6 +11,8 @@ const { notifyUser } = require("../notifications");
 const { toCents } = require("../money");
 const { buildMilestones } = require("../workflow");
 const { todayISO, validDate, validateSchedule } = require("../projectDates");
+const { pagination, listResponse } = require("../pagination");
+const { hiringAvailable } = require("../moderation");
 
 const router = express.Router();
 
@@ -66,7 +68,7 @@ async function offerContext(req, res) {
     res.status(403).json({ message: "Access denied" });
     return null;
   }
-  if (application.status !== "PENDING" || project.status !== "Open" || project.freelancer) {
+  if (application.status !== "PENDING" || project.status !== "Open" || project.freelancer || !await hiringAvailable(project, application.freelancer)) {
     res.status(409).json({ message: "Hiring is closed for this proposal" });
     return null;
   }
@@ -75,8 +77,8 @@ async function offerContext(req, res) {
 
 async function loadApplicants(project) {
   const applications = await Application.find({ project: project._id })
-    .populate("freelancer", "name profile.headline profile.bio profile.skills profile.experienceYears profile.portfolioUrl profile.availability")
-    .sort({ createdAt: -1 });
+    .populate("freelancer", "name suspended profile.headline profile.bio profile.skills profile.experienceYears profile.portfolioUrl profile.availability")
+    .sort({ createdAt: -1, _id: -1 });
   const freelancerIds = applications.map(application => application.freelancer?._id).filter(Boolean);
   const workHistory = freelancerIds.length
     ? await Project.find({ freelancer: { $in: freelancerIds } }).select("freelancer client status milestones.status milestones.revisionCount").lean()
@@ -131,13 +133,13 @@ router.post("/", protect, allowRoles("freelancer"), async (req, res) => {
       return res.status(400).json({ message: "Add up to ten complete question and answer pairs" });
     }
 
-    const project = await Project.findById(projectId).select("client status freelancer title");
+    const project = await Project.findById(projectId).select("client status freelancer title moderationHidden");
 
     if (!project) {
       return res.status(404).json({ message: "Project not found" });
     }
 
-    if (project.status !== "Open" || project.freelancer) {
+    if (project.status !== "Open" || project.freelancer || !await hiringAvailable(project)) {
       return res.status(409).json({ message: "Applications are closed for this project" });
     }
 
@@ -154,7 +156,7 @@ router.post("/", protect, allowRoles("freelancer"), async (req, res) => {
     await Invitation.updateOne({ project: projectId, freelancer: req.user._id, status: "PENDING" }, { $set: { status: "RESPONDED" } });
 
     publishUser(project.client, "applications", project._id);
-    await notifyUser(project.client, "application", "New proposal received", `${req.user.name || "A freelancer"} applied to ${project.title}.`, "/client-dashboard");
+    await notifyUser(project.client, "application", "New proposal received", `${req.user.name || "A freelancer"} applied to ${project.title}.`, "/client-dashboard", "proposals");
 
     res.status(201).json({
       message: "Application submitted successfully",
@@ -171,13 +173,14 @@ router.post("/", protect, allowRoles("freelancer"), async (req, res) => {
 
 router.get("/mine", protect, allowRoles("freelancer"), async (req, res) => {
   try {
+    const paging = pagination(req.query);
     const applications = await Application.find({ freelancer: req.user._id })
-      .populate("project", "title status freelancer listingRevision")
-      .sort({ createdAt: -1 });
-
-    res.json(applications);
+      .populate("project", "title status freelancer listingRevision moderationHidden")
+      .sort({ createdAt: -1, _id: -1 }).skip(paging.skip).limit(paging.pageSize);
+    const [total, pending] = await Promise.all([Application.countDocuments({ freelancer: req.user._id }), Application.countDocuments({ freelancer: req.user._id, status: "PENDING" })]);
+    listResponse(res, applications, total, paging, { summary: { pending } });
   } catch (error) {
-    res.status(500).json({ message: "Server error" });
+    res.status(error.status || 500).json({ message: error.status ? error.message : "Unable to load applications" });
   }
 });
 
@@ -207,9 +210,15 @@ router.get(
         return res.status(403).json({ message: "Access denied" });
       }
 
-      res.json(await loadApplicants(project));
+      const paging = pagination(req.query);
+      if (req.query.shortlisted !== undefined && !["true", "false"].includes(req.query.shortlisted)) return res.status(400).json({ message: "Invalid shortlist filter" });
+      if (req.query.budget && !["within_budget", "above_budget", "unknown"].includes(req.query.budget)) return res.status(400).json({ message: "Invalid budget compatibility" });
+      if (req.query.availability && !["available", "limited", "unavailable", "unknown"].includes(req.query.availability)) return res.status(400).json({ message: "Invalid availability" });
+      const all = (await loadApplicants(project)).sort((a, b) => (a.status === "PENDING" ? 0 : 1) - (b.status === "PENDING" ? 0 : 1) || Number(Boolean(b.shortlisted)) - Number(Boolean(a.shortlisted)) || (b.match?.score ?? -1) - (a.match?.score ?? -1) || new Date(b.createdAt) - new Date(a.createdAt) || String(b._id).localeCompare(String(a._id)));
+      const filtered = all.filter(item => (req.query.shortlisted !== "true" || item.shortlisted) && (!req.query.budget || (item.match?.compatibility?.budget || "unknown") === req.query.budget) && (!req.query.availability || (item.match?.compatibility?.availability || "unknown") === req.query.availability));
+      listResponse(res, filtered.slice(paging.skip, paging.skip + paging.pageSize), filtered.length, paging, { summary: { all: all.length, pending: all.filter(item => item.status === "PENDING" && !item.freelancer?.suspended).length, shortlisted: all.filter(item => item.shortlisted).length } });
     } catch (error) {
-      res.status(500).json({ message: "Server error" });
+      res.status(error.status || 500).json({ message: error.status ? error.message : "Unable to load applicants" });
     }
   }
 );
@@ -217,12 +226,13 @@ router.get(
 router.post("/project/:projectId/ai-rank", protect, allowRoles("client"), async (req, res) => {
   try {
     if (!isValidId(req.params.projectId)) return res.status(400).json({ message: "Invalid project ID" });
-    const project = await Project.findById(req.params.projectId).select("client title description requiredSkills budget status");
+    const project = await Project.findById(req.params.projectId).select("client title description requiredSkills budget status moderationHidden");
     if (!project) return res.status(404).json({ message: "Project not found" });
     if (project.client.toString() !== req.user._id.toString()) return res.status(403).json({ message: "Access denied" });
-    if (project.status !== "Open") return res.status(409).json({ message: "AI analysis is available while hiring is open" });
+    if (project.status !== "Open" || !await hiringAvailable(project)) return res.status(409).json({ message: "AI analysis is available while hiring is open" });
     if (!aiMatchingAvailable()) return res.status(503).json({ message: "AI analysis is not configured on this server" });
-    const pending = (await loadApplicants(project)).filter(application => application.status === "PENDING" && application.freelancer && application.match);
+    if (await Application.countDocuments({ project: project._id, status: "PENDING" }) > MAX_CANDIDATES) return res.status(400).json({ message: `AI analysis supports 1–${MAX_CANDIDATES} pending applicants` });
+    const pending = (await loadApplicants(project)).filter(application => application.status === "PENDING" && application.freelancer && !application.freelancer.suspended && application.match);
     if (!pending.length || pending.length > MAX_CANDIDATES) {
       return res.status(400).json({ message: `AI analysis supports 1–${MAX_CANDIDATES} pending applicants` });
     }
@@ -305,7 +315,7 @@ router.patch("/:applicationId", protect, allowRoles("freelancer"), async (req, r
     );
     if (!updated) return res.status(409).json({ message: "Proposal can no longer be changed" });
     publishUser(context.project.client, "applications", context.project._id);
-    if (application.currentOfferState === "OPEN") await notifyUser(context.project.client, "application", "Proposal updated; offer withdrawn", `The freelancer updated their proposal for ${context.project.title}; the previous offer is no longer active.`, "/client-dashboard");
+    await notifyUser(context.project.client, "application", application.currentOfferState === "OPEN" ? "Proposal updated; offer withdrawn" : "Proposal updated", `The freelancer updated their proposal for ${context.project.title}.${application.currentOfferState === "OPEN" ? " The previous offer is no longer active." : ""}`, "/client-dashboard", "proposals");
     res.json({ message: "Proposal updated", application: updated, invalidatedOffer: application.currentOfferState === "OPEN" });
   } catch (error) {
     res.status(500).json({ message: "Could not update proposal" });
@@ -333,7 +343,7 @@ router.post("/:applicationId/withdraw", protect, allowRoles("freelancer"), async
     );
     if (!updated) return res.status(409).json({ message: "Proposal can no longer be withdrawn" });
     publishUser(context.project.client, "applications", context.project._id);
-    await notifyUser(context.project.client, "application", "Proposal withdrawn", `A freelancer withdrew their proposal for ${context.project.title}.`, "/client-dashboard");
+    await notifyUser(context.project.client, "application", "Proposal withdrawn", `A freelancer withdrew their proposal for ${context.project.title}.`, "/client-dashboard", "proposals");
     res.json({ message: "Proposal withdrawn", application: updated });
   } catch (error) {
     res.status(500).json({ message: "Could not withdraw proposal" });
@@ -389,7 +399,7 @@ router.post("/:applicationId/offer", protect, async (req, res) => {
     if (!updated) return res.status(409).json({ message: "The proposal or offer changed; reload before making another offer" });
     const recipient = isClient ? application.freelancer : project.client;
     publishUser(recipient, "applications", project._id);
-    await notifyUser(recipient, "application", activeOffer ? "Counter-offer received" : "Project offer received", `${req.user.name || "The other participant"} proposed terms for ${project.title}.`, isClient ? "/freelancer-dashboard" : "/client-dashboard");
+    await notifyUser(recipient, "application", activeOffer ? "Counter-offer received" : "Project offer received", `${req.user.name || "The other participant"} proposed terms for ${project.title}.`, isClient ? "/freelancer-dashboard" : "/client-dashboard", "offers");
     res.status(201).json({ message: "Offer version created", application: updated });
   } catch (error) {
     res.status(500).json({ message: "Could not create offer" });
@@ -484,8 +494,8 @@ router.post("/:applicationId/offer/:offerId/accept", protect, async (req, res) =
     publishUser(project.client, "applications", project._id);
     publishUser(application.freelancer, "applications", project._id);
     await Promise.all([
-      notifyUser(project.client, "application", "Terms agreed; freelancer assigned", `You and ${req.user.role === "freelancer" ? req.user.name : "the freelancer"} agreed to version ${agreedOffer.version} for ${project.title}.`, `/milestones/${project._id}`),
-      notifyUser(application.freelancer, "application", "Terms agreed; project assigned", `You and the client agreed to version ${agreedOffer.version} for ${project.title}.`, `/milestones/${project._id}`),
+      notifyUser(project.client, "application", "Terms agreed; freelancer assigned", `You and ${req.user.role === "freelancer" ? req.user.name : "the freelancer"} agreed to version ${agreedOffer.version} for ${project.title}.`, `/milestones/${project._id}`, "offers"),
+      notifyUser(application.freelancer, "application", "Terms agreed; project assigned", `You and the client agreed to version ${agreedOffer.version} for ${project.title}.`, `/milestones/${project._id}`, "offers"),
       ...otherPending.map(candidate => notifyUser(candidate.freelancer, "application", "Project hired another freelancer", `${project.title} is no longer accepting proposals.`, "/freelancer-dashboard")),
     ]);
     res.json({ message: "Terms agreed and freelancer assigned", application: finalApplication, project: assigned });
@@ -511,7 +521,7 @@ router.post("/:applicationId/offer/:offerId/decline", protect, async (req, res) 
     if (!updated) return res.status(409).json({ message: "Offer changed; reload before declining" });
     const recipient = String(offer.createdBy) === String(project.client) ? application.freelancer : project.client;
     publishUser(recipient, "applications", project._id);
-    await notifyUser(recipient, "application", "Project offer declined", `${req.user.name || "The other participant"} declined terms for ${project.title}.`, recipient.toString() === String(application.freelancer) ? "/freelancer-dashboard" : "/client-dashboard");
+    await notifyUser(recipient, "application", "Project offer declined", `${req.user.name || "The other participant"} declined terms for ${project.title}.`, recipient.toString() === String(application.freelancer) ? "/freelancer-dashboard" : "/client-dashboard", "offers");
     res.json({ message: "Offer declined", application: updated });
   } catch (error) {
     res.status(500).json({ message: "Could not decline offer" });
@@ -546,7 +556,7 @@ const updateApplicationStatus = async (req, res, status) => {
     if (!updated) return res.status(409).json({ message: "Application is no longer pending" });
     publishUser(application.freelancer, "applications", project._id);
     publishUser(project.client, "applications", project._id);
-    await notifyUser(application.freelancer, "application", "Proposal not selected", `Your proposal for ${project.title} was not selected.`, "/freelancer-dashboard");
+    await notifyUser(application.freelancer, "application", "Proposal not selected", `Your proposal for ${project.title} was not selected.`, "/freelancer-dashboard", "proposals");
     res.json({ message: "Application rejected", application: updated });
   } catch (error) {
     res.status(500).json({ message: "Server error" });

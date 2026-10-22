@@ -1,6 +1,8 @@
+import AccountData from "../components/AccountData";
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Shell from "../components/Shell";
+import EmailPreferences from "../components/EmailPreferences";
 import { api, currentUser, signOut } from "../api";
 
 export default function AccountSettings() {
@@ -19,15 +21,17 @@ export default function AccountSettings() {
     setBusy(true); setError(""); setNotice("");
     try {
       const result = await api(`/account/${path}`, { method, ...(body ? { body: JSON.stringify(body) } : {}) });
-      if (result.signedOut) { signOut(); navigate("/login?account=updated", { replace: true }); return; }
+      if (result.signedOut) { signOut({ localOnly: true }); navigate("/login?account=updated", { replace: true }); return; }
       setNotice(result.message); setEmail({ currentPassword: "", email: "" }); await load();
     } catch (err) { setError(err.message); }
     finally { setBusy(false); }
   }
 
-  return <Shell role={currentUser()?.role || "client"} eyebrow="YOUR ACCOUNT" title="Account settings" subtitle="Manage your password, verified email changes and active sign-ins.">
+  return <Shell role={currentUser()?.role || "client"} eyebrow="YOUR ACCOUNT" title="Account settings" subtitle="Manage your password, email preferences and active sign-ins.">
     {error && <p className="message error" role="alert">{error}</p>}{notice && <p className="message success" role="status">{notice}</p>}
     {!account ? <p>Loading account…</p> : <div className="account-settings-grid">
+      <EmailPreferences />
+      <AccountData />
       <section className="panel account-settings-card"><h2>Change password</h2><p>Your current sign-in email is <strong>{account.email}</strong>. Changing your password signs out every device, including this one.</p><form className="stack-form" onSubmit={event => { event.preventDefault(); if (password.password !== password.confirm) { setError("New passwords do not match."); return; } submit("password", { currentPassword: password.currentPassword, password: password.password }); }}>
         <label>Current password<input type="password" autoComplete="current-password" required value={password.currentPassword} onChange={event => setPassword(value => ({ ...value, currentPassword: event.target.value }))} /></label>
         <label>New password<input type="password" autoComplete="new-password" minLength="8" maxLength="72" required value={password.password} onChange={event => setPassword(value => ({ ...value, password: event.target.value }))} /></label>

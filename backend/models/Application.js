@@ -87,6 +87,8 @@ const applicationSchema = new mongoose.Schema(
 );
 
 applicationSchema.index({ project: 1 });
+applicationSchema.index({ project: 1, createdAt: -1, _id: -1 });
+applicationSchema.index({ freelancer: 1, createdAt: -1, _id: -1 });
 applicationSchema.index({ freelancer: 1 });
 applicationSchema.index({ project: 1, freelancer: 1 }, { unique: true });
 

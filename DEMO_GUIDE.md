@@ -12,7 +12,7 @@ This demo uses a **separate local MongoDB database** named `freelancechain_demo`
    ```powershell
    $env:MONGO_URI='mongodb://127.0.0.1:27017/freelancechain_demo'
    $env:JWT_SECRET=[Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(48))
-   $env:NODE_ENV='production'
+   $env:NODE_ENV='development'
    $env:APP_ORIGIN='http://127.0.0.1:5000'
    $env:RESET_DELIVERY='console'
    $env:PORT='5000'

@@ -141,6 +141,9 @@ const projectSchema = new mongoose.Schema(
       enum: ["Open", "Closed", "In Progress", "Completed", "Cancelled"],
       default: "Open",
     },
+    ...require("./moderationFields")(),
+    moderationHidden: { type: Boolean, default: false },
+    sourceDraft: { type: mongoose.Schema.Types.ObjectId, ref: "ProjectDraft", unique: true, sparse: true },
     listingRevision: { type: Number, default: 0 },
     listingHistory: [{ revision: Number, actor: { type: mongoose.Schema.Types.ObjectId, ref: "User" }, changedAt: { type: Date, default: Date.now }, before: mongoose.Schema.Types.Mixed }],
     pendingAmendment: { type: mongoose.Schema.Types.ObjectId, default: null },
@@ -162,4 +165,7 @@ const projectSchema = new mongoose.Schema(
   { timestamps: true, optimisticConcurrency: true }
 );
 
+projectSchema.index({ client: 1, createdAt: -1, _id: -1 });
+projectSchema.index({ freelancer: 1, createdAt: -1, _id: -1 });
+projectSchema.index({ status: 1, moderationHidden: 1, createdAt: -1, _id: -1 });
 module.exports = mongoose.model("Project", projectSchema);

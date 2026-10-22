@@ -22,7 +22,7 @@ test("refreshes the client workspace when a project update arrives", async () =>
   api.mockReset();
   subscribeUpdates.mockClear();
   let projectRequests = 0;
-  api.mockImplementation(path => path === "/profile/me" ? Promise.resolve({ company: { name: "", overview: "" } }) : Promise.resolve(projectRequests++ === 0 ? [] : [{ _id: "project-2", title: "Fresh project", status: "Open", budget: 1000, deadline: "2030-12-31", milestones: [] }]));
+  api.mockImplementation(path => path === "/project-drafts" ? Promise.resolve({ drafts: [] }) : path === "/profile/me" ? Promise.resolve({ company: { name: "", overview: "" } }) : Promise.resolve(projectRequests++ === 0 ? [] : [{ _id: "project-2", title: "Fresh project", status: "Open", budget: 1000, deadline: "2030-12-31", milestones: [] }]));
   render(<MemoryRouter><ClientDashboard /></MemoryRouter>);
   expect(await screen.findByText("Your first project starts here")).toBeInTheDocument();
   await act(async () => { subscribeUpdates.mock.calls[0][0]({ type: "project", projectId: "project-2" }); });
@@ -32,7 +32,7 @@ test("refreshes the client workspace when a project update arrives", async () =>
 test("client can update the public company information on open jobs", async () => {
   api.mockReset();
   api.mockImplementation((path, options) => {
-    if (path === "/projects/mine") return Promise.resolve([]);
+    if (path.split("?")[0] === "/projects/mine") return Promise.resolve([]);
     if (path === "/profile/me" && options?.method === "PUT") return Promise.resolve({ company: { name: "Northstar Studio", overview: "A product design team." } });
     if (path === "/profile/me") return Promise.resolve({ company: { name: "", overview: "" } });
     return Promise.resolve([]);

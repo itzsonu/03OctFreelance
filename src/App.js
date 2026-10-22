@@ -1,3 +1,8 @@
+import Support from "./pages/Support";
+import ServicePolicies from "./pages/ServicePolicies";
+import AdminSupport from "./pages/AdminSupport";
+import AdminStorage from "./pages/AdminStorage";
+import "./ServicePages.css";
 import React from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 
@@ -16,6 +21,8 @@ import TalentDirectory from "./pages/TalentDirectory";
 import PublicJob from "./pages/PublicJob";
 import TalentProfile from "./pages/TalentProfile";
 import AdminCases from "./pages/AdminCases";
+import AdminDashboard from "./pages/AdminDashboard";
+import "./Administration.css";
 import ProtectedRoute from "./ProtectedRoute";
 
 import "./App.css";
@@ -33,10 +40,17 @@ import "./Marketplace.css";
 import "./ProjectLifecycle.css";
 import "./AccountSettings.css";
 
+import "./Typography.css";
+
 function App() {
   return (
     <Router>
       <Routes>
+        <Route path="/terms" element={<ServicePolicies />} />
+        <Route path="/privacy" element={<ServicePolicies privacy />} />
+        <Route path="/support" element={<Support />} />
+        <Route path="/admin/support" element={<ProtectedRoute allowedRole="admin"><AdminSupport /></ProtectedRoute>} />
+        <Route path="/admin/storage" element={<ProtectedRoute allowedRole="admin"><AdminStorage /></ProtectedRoute>} />
         <Route path="/account/verify-email" element={<VerifyEmailChange />} />
         <Route path="/account" element={<ProtectedRoute><AccountSettings /></ProtectedRoute>} />
         <Route path="/" element={<HomePage />} />
@@ -69,6 +83,7 @@ function App() {
         <Route path="/talent/:freelancerId" element={<ProtectedRoute allowedRole="client"><TalentProfile /></ProtectedRoute>} />
         <Route path="/workrooms" element={<ProtectedRoute><WorkroomInbox /></ProtectedRoute>} />
         <Route path="/admin/cases" element={<ProtectedRoute allowedRole="admin"><AdminCases /></ProtectedRoute>} />
+        <Route path="/admin/overview" element={<ProtectedRoute allowedRole="admin"><AdminDashboard /></ProtectedRoute>} />
 
         <Route
           path="/milestones/:projectId"

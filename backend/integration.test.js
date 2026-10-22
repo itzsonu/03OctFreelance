@@ -1,3 +1,4 @@
+const { authHeaders, responseAuth } = require("./testSession");
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const crypto = require("node:crypto");
@@ -30,10 +31,11 @@ test("real client-to-freelancer workflow with revisions, dependencies and trust"
   async function request(method, path, token, body, expected = 200) {
     const response = await fetch(`${baseUrl}${path}`, {
       method,
-      headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(body ? { "Content-Type": "application/json" } : {}) },
+      headers: { ...authHeaders(token), ...(body ? { "Content-Type": "application/json" } : {}) },
       ...(body ? { body: JSON.stringify(body) } : {}),
     });
     const data = await response.json();
+    if (path === "/api/auth/login" && response.ok) data.sessionAuth = responseAuth(response, data);
     assert.equal(response.status, expected, `${method} ${path}: ${JSON.stringify(data)}`);
     return data;
   }
@@ -42,14 +44,14 @@ test("real client-to-freelancer workflow with revisions, dependencies and trust"
     const body = new FormData();
     Object.entries(fields || {}).forEach(([key, value]) => body.append(key, value));
     files.forEach(file => body.append("files", new Blob([file.bytes], { type: file.type }), file.name));
-    const response = await fetch(`${baseUrl}${path}`, { method, headers: token ? { Authorization: `Bearer ${token}` } : {}, body });
+    const response = await fetch(`${baseUrl}${path}`, { method, headers: authHeaders(token), body });
     const data = await response.json();
     assert.equal(response.status, expected, `${method} ${path}: ${JSON.stringify(data)}`);
     return data;
   }
 
   async function downloadRequest(path, token, expected = 200) {
-    const response = await fetch(`${baseUrl}${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    const response = await fetch(`${baseUrl}${path}`, { headers: authHeaders(token) });
     assert.equal(response.status, expected, `GET ${path}`);
     return response;
   }
@@ -60,7 +62,7 @@ test("real client-to-freelancer workflow with revisions, dependencies and trust"
 
   async function openUpdates(token) {
     const abort = new AbortController();
-    const response = await originalFetch(`${baseUrl}/api/updates`, { headers: { Authorization: `Bearer ${token}` }, signal: abort.signal });
+    const response = await originalFetch(`${baseUrl}/api/updates`, { headers: authHeaders(token), signal: abort.signal });
     assert.equal(response.status, 200);
     assert.match(response.headers.get("content-type"), /text\/event-stream/);
     const stream = { abort, reader: response.body.getReader(), buffer: "" };
@@ -94,6 +96,7 @@ test("real client-to-freelancer workflow with revisions, dependencies and trust"
 
   try {
     await mongoose.connect(`${mongoBase}/${databaseName}`, { serverSelectionTimeoutMS: 5000 });
+    process.env.APP_ORIGIN = baseUrl;
     assert.equal((await request("GET", "/api/health")).status, "ok");
     const sameOriginHealth = await fetch(`${baseUrl}/api/health`, { headers: { Origin: baseUrl } });
     assert.equal(sameOriginHealth.status, 200);
@@ -109,9 +112,9 @@ test("real client-to-freelancer workflow with revisions, dependencies and trust"
     const registeredClient = await request("POST", "/api/auth/register", null, { name: "Client One", email: "client@example.test", password, role: "client" }, 201);
     const registeredFreelancer = await request("POST", "/api/auth/register", null, { name: "Freelancer One", email: "freelancer@example.test", password, role: "freelancer" }, 201);
     const registeredOther = await request("POST", "/api/auth/register", null, { name: "Other Freelancer", email: "other@example.test", password, role: "freelancer" }, 201);
-    const clientToken = (await request("POST", "/api/auth/login", null, { email: "client@example.test", password, role: "client" })).token;
-    const freelancerToken = (await request("POST", "/api/auth/login", null, { email: "freelancer@example.test", password, role: "freelancer" })).token;
-    const otherToken = (await request("POST", "/api/auth/login", null, { email: "other@example.test", password, role: "freelancer" })).token;
+    const clientToken = (await request("POST", "/api/auth/login", null, { email: "client@example.test", password, role: "client" })).sessionAuth;
+    const freelancerToken = (await request("POST", "/api/auth/login", null, { email: "freelancer@example.test", password, role: "freelancer" })).sessionAuth;
+    const otherToken = (await request("POST", "/api/auth/login", null, { email: "other@example.test", password, role: "freelancer" })).sessionAuth;
     const adminPassword = "integration-admin-password-123";
     const adminHash = await bcrypt.hash(adminPassword, 10);
     const adminOneId = new mongoose.Types.ObjectId();
@@ -120,8 +123,8 @@ test("real client-to-freelancer workflow with revisions, dependencies and trust"
       { _id: adminOneId, name: "Review Admin One", email: "admin-one@example.test", password: adminHash, role: "admin", tokenVersion: 0, createdAt: new Date(), updatedAt: new Date() },
       { _id: adminTwoId, name: "Review Admin Two", email: "admin-two@example.test", password: adminHash, role: "admin", tokenVersion: 0, createdAt: new Date(), updatedAt: new Date() },
     ]);
-    const adminOneToken = (await request("POST", "/api/auth/login", null, { email: "admin-one@example.test", password: adminPassword, role: "admin" })).token;
-    const adminTwoToken = (await request("POST", "/api/auth/login", null, { email: "admin-two@example.test", password: adminPassword, role: "admin" })).token;
+    const adminOneToken = (await request("POST", "/api/auth/login", null, { email: "admin-one@example.test", password: adminPassword, role: "admin" })).sessionAuth;
+    const adminTwoToken = (await request("POST", "/api/auth/login", null, { email: "admin-two@example.test", password: adminPassword, role: "admin" })).sessionAuth;
     await request("POST", "/api/auth/register", null, { name: "Admin Promotion", email: "client@example.test", password, role: "admin" }, 400);
     assert.deepEqual((await request("GET", "/api/profile/me", clientToken)).company, { name: "", overview: "" });
     await request("PUT", "/api/profile/me", clientToken, { companyName: "Northstar Studio", companyOverview: "A small product team building accessible tools." });
@@ -505,7 +508,7 @@ test("real client-to-freelancer workflow with revisions, dependencies and trust"
     const concurrentResolutions = await Promise.all([adminOneToken, adminTwoToken].map(async token => {
       const response = await fetch(`${baseUrl}/api/admin/cases/${reopenedCase._id}/resolve`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        headers: { ...authHeaders(token), "Content-Type": "application/json" },
         body: JSON.stringify({ reason: "Resolve the newly opened case after review." }),
       });
       return { status: response.status, data: await response.json() };
@@ -596,7 +599,7 @@ test("real client-to-freelancer workflow with revisions, dependencies and trust"
       { applicationId: concurrentApplicationA._id, offerId: concurrentOfferA.application.currentOfferId, token: freelancerToken },
       { applicationId: concurrentApplicationB._id, offerId: concurrentOfferB.application.currentOfferId, token: otherToken },
     ].map(async item => {
-      const response = await fetch(`${baseUrl}/api/applications/${item.applicationId}/offer/${item.offerId}/accept`, { method: "POST", headers: { Authorization: `Bearer ${item.token}`, "Content-Type": "application/json" }, body: "{}" });
+      const response = await fetch(`${baseUrl}/api/applications/${item.applicationId}/offer/${item.offerId}/accept`, { method: "POST", headers: { ...authHeaders(item.token), "Content-Type": "application/json" }, body: "{}" });
       return { status: response.status, data: await response.json() };
     }));
     assert.deepEqual(concurrentAcceptances.map(item => item.status).sort(), [200, 409]);
@@ -686,14 +689,14 @@ test("real client-to-freelancer workflow with revisions, dependencies and trust"
     await request("POST", "/api/auth/reset-password", null, { token: secondToken, password: "another-password" }, 400);
     await request("POST", "/api/auth/login", null, { email: "client@example.test", password, role: "client" }, 400);
     await request("GET", "/api/projects/mine", clientToken, null, 401);
-    assert.ok((await request("POST", "/api/auth/login", null, { email: "client@example.test", password: "new-client-password", role: "client" })).token);
+    assert.ok((await request("POST", "/api/auth/login", null, { email: "client@example.test", password: "new-client-password", role: "client" })).sessionAuth);
     const unknownLogin = await request("POST", "/api/auth/login", null, { email: "unknown@example.test", password, role: "client" }, 400);
     const wrongPassword = await request("POST", "/api/auth/login", null, { email: "client@example.test", password, role: "client" }, 400);
     assert.equal(unknownLogin.message, wrongPassword.message);
     assert.equal(wrongPassword.message, "Invalid credentials");
     let limited = false;
     for (let attempt = 0; attempt < 21; attempt++) {
-      const response = await fetch(`${baseUrl}/api/auth/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: "unknown@example.test", password, role: "client" }) });
+      const response = await fetch(`${baseUrl}/api/auth/login`, { method: "POST", headers: { ...authHeaders(null), "Content-Type": "application/json" }, body: JSON.stringify({ email: "unknown@example.test", password, role: "client" }) });
       if (response.status === 429) { limited = true; break; }
       assert.equal(response.status, 400);
     }

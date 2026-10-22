@@ -1,4 +1,6 @@
 const connections = new Set();
+const crypto = require("node:crypto");
+const { sessionActive } = require("./sessions");
 
 function identity(value) {
   if (!value) return null;
@@ -18,11 +20,19 @@ function subscribe(req, res) {
     Connection: "keep-alive",
   });
   res.flushHeaders();
-  const client = { userId, role: req.user.role, res };
+  const client = { userId, role: req.user.role, sessionHash: req.authSession?.tokenHash, res };
   connections.add(client);
   res.write("event: ready\ndata: {}\n\n");
-  const heartbeat = setInterval(() => res.write(": keepalive\n\n"), 25000);
-  const lifetime = setTimeout(() => res.end(), 30 * 60 * 1000);
+  let checking = false;
+  const heartbeat = setInterval(async () => {
+    if (checking) return;
+    checking = true;
+    try { if (!await sessionActive(req.authSession)) return res.end(); res.write(": keepalive\n\n"); }
+    catch { res.end(); }
+    finally { checking = false; }
+  }, 25000);
+  const remaining = req.authSession ? Math.max(1, req.authSession.expiresAt.getTime() - Date.now()) : 30 * 60 * 1000;
+  const lifetime = setTimeout(() => res.end(), Math.min(30 * 60 * 1000, remaining));
   heartbeat.unref?.();
   lifetime.unref?.();
   res.on("close", () => {
@@ -60,4 +70,11 @@ function disconnectUser(userId) {
   for (const client of connections) if (client.userId === id) { connections.delete(client); client.res.end(); }
 }
 
-module.exports = { disconnectUser, subscribe, publishUser, publishProject, publishMarketplace };
+function disconnectSession(token) {
+  if (!token) return;
+  const hash = crypto.createHash("sha256").update(token).digest("hex");
+  for (const client of connections) if (client.sessionHash === hash) { connections.delete(client); client.res.end(); }
+}
+
+function disconnectAll() { for (const client of connections) client.res.end(); connections.clear(); }
+module.exports = { disconnectAll, disconnectSession, disconnectUser, subscribe, publishUser, publishProject, publishMarketplace };

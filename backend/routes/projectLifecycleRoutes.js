@@ -7,6 +7,7 @@ const { normalizeProjectDraft, listingSnapshot } = require("../projectDraft");
 const { validateSchedule } = require("../projectDates");
 const { publishProject, publishMarketplace, publishUser } = require("../liveUpdates");
 const { notifyUser } = require("../notifications");
+const { hiringAvailable } = require("../moderation");
 
 const router = express.Router();
 const { route, commit, fail, note } = require("../projectMutation");
@@ -42,6 +43,7 @@ router.patch("/:projectId/listing", ...route(async (req, project) => {
 }, true));
 
 router.post("/:projectId/hiring", ...route(async (req, project) => {
+  if (req.body.action === "reopen" && !await hiringAvailable(project)) fail(409, "An administrator has restricted this listing. It cannot be reopened until restored.");
   if (!unassigned(project)) fail(409, "Hiring can only change before a freelancer is assigned");
   const target = req.body.action === "close" ? "Closed" : req.body.action === "reopen" ? "Open" : null;
   if (!target) fail(400, "Choose close or reopen");

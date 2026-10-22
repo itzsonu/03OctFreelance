@@ -1,0 +1,51 @@
+name: freelancechain
+services:
+  app:
+    build: .
+    image: freelancechain:${APP_IMAGE_TAG:-local}
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      NODE_ENV: production
+      APP_ORIGIN: https://${APP_DOMAIN:?Set APP_DOMAIN in deploy/.env}
+      MONGO_URI_FILE: /run/secrets/mongo_uri
+      JWT_SECRET_FILE: /run/secrets/session_secret
+      PRIVATE_UPLOAD_DIR: /data/uploads
+      UPLOAD_USER_QUOTA_MB: ${UPLOAD_USER_QUOTA_MB:-500}
+      EVENT_EMAILS_ENABLED: "false"
+      TRUST_PROXY: 172.30.91.0/24
+    secrets: [mongo_uri, session_secret]
+    volumes: [private_uploads:/data/uploads]
+    networks: [proxy, outbound]
+  proxy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      app: {condition: service_healthy}
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?Set APP_DOMAIN in deploy/.env}
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [proxy, edge]
+secrets:
+  mongo_uri: {file: ./deploy/secrets/mongo_uri.txt}
+  session_secret: {file: ./deploy/secrets/session_secret.txt}
+volumes:
+  private_uploads:
+  caddy_data:
+  caddy_config:
+networks:
+  proxy:
+    internal: true
+    ipam:
+      config: [{subnet: 172.30.91.0/24}]
+  outbound:
+  edge:

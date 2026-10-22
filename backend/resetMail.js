@@ -37,6 +37,11 @@ async function sendSecurityEmail(email, token, { pathname = "/reset-password", p
     return;
   }
 
+  return sendEmailContent(email, subject, `${instruction}\n${link}\n\nIf you did not request this, ignore this email.`, { createTransport });
+}
+
+async function sendEmailContent(email, subject, text, { createTransport, idempotencyKey } = {}) {
+
   if (process.env.RESET_DELIVERY === "gmail") {
     const transport = (createTransport || require("nodemailer").createTransport)({
       service: "gmail",
@@ -50,7 +55,7 @@ async function sendSecurityEmail(email, token, { pathname = "/reset-password", p
         from: `FreelanceChain <${gmailUser()}>`,
         to: email,
         subject,
-        text: `${instruction}\n${link}\n\nIf you did not request this, ignore this email.`,
+        text,
       });
     } finally {
       transport.close?.();
@@ -60,12 +65,12 @@ async function sendSecurityEmail(email, token, { pathname = "/reset-password", p
 
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
-    headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
+    headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json", ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}) },
     body: JSON.stringify({
       from: process.env.RESET_FROM_EMAIL,
       to: [email],
       subject,
-      text: `${instruction}\n${link}\n\nIf you did not request this, ignore this email.`,
+      text,
     }),
     signal: AbortSignal.timeout(10000),
   });
@@ -75,4 +80,19 @@ async function sendSecurityEmail(email, token, { pathname = "/reset-password", p
 function sendResetEmail(email, token, options) { return sendSecurityEmail(email, token, {}, options); }
 function sendEmailChangeLink(email, token, options) { return sendSecurityEmail(email, token, { pathname: "/account/verify-email", purpose: "email verification", subject: "Verify your new FreelanceChain email", instruction: "Confirm your new FreelanceChain email within 30 minutes:" }, options); }
 
-module.exports = { sendEmailChangeLink, RESET_MESSAGE, LOCAL_RESET_MESSAGE, resetDeliveryMode, resetDeliveryReady, sendResetEmail };
+async function sendEventEmail(email, notification, options = {}) {
+  const target = resetOrigin();
+  const mode = resetDeliveryMode();
+  if (!target || mode === "unavailable") throw new Error("Event email delivery unavailable");
+  const path = notification.link;
+  if (typeof path !== "string" || !/^\/(?:client-dashboard|freelancer-dashboard|milestones\/[a-f0-9]{24})$/.test(path)) throw new Error("Invalid notification email link");
+  const link = new URL(path, target.origin);
+  const preferences = new URL("/account", target.origin);
+  const subject = `FreelanceChain: ${notification.title.replace(/[\r\n]/g, " ")}`;
+  const text = `${notification.body}\n\nOpen FreelanceChain: ${link}\n\nYou enabled this type of email alert. Change your preferences: ${preferences}\nSign in to view private project details. Do not reply to this automated message.`;
+  if (mode === "local-console") { console.log(`Local event email preview (no email sent) to ${email}:\n${subject}\n${text}`); return mode; }
+  await sendEmailContent(email, subject, text, { ...options, idempotencyKey: `event-${notification._id}` });
+  return mode;
+}
+
+module.exports = { sendEventEmail, sendEmailChangeLink, RESET_MESSAGE, LOCAL_RESET_MESSAGE, resetDeliveryMode, resetDeliveryReady, sendResetEmail };

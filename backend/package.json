@@ -12,7 +12,15 @@
     "ai:check": "node scripts/checkAi.js",
     "eval:research": "node researchEvaluation.js",
     "test:lifecycle": "node projectLifecycle.test.js",
-    "test:changes": "node accountAndChanges.test.js"
+    "test:changes": "node accountAndChanges.test.js",
+    "test:drafts-emails": "node --test draftsAndEmails.test.js resetMail.test.js",
+    "test:security": "node --test sessionSecurity.test.js",
+    "test:admin-pagination": "node --test adminPagination.test.js",
+    "test:storage-support": "node --test storageSupport.test.js",
+    "test:recovery": "node --test deploymentRecovery.test.js",
+    "backup": "node scripts/recovery.js backup",
+    "restore": "node scripts/recovery.js restore",
+    "health:check": "node scripts/checkHealth.js"
   },
   "keywords": [],
   "author": "",

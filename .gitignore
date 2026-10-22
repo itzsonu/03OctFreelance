@@ -16,3 +16,6 @@ research/results/
 *.key
 .DS_Store
 Thumbs.db
+
+deploy/secrets/
+.backups/

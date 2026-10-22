@@ -12,7 +12,7 @@ export default function VerifyEmailChange() {
   const [error, setError] = useState("");
   async function confirm() {
     setBusy(true); setError("");
-    try { await api("/account/email/confirm", { method: "POST", body: JSON.stringify({ token }) }); signOut(); setDone(true); }
+    try { await api("/account/email/confirm", { method: "POST", body: JSON.stringify({ token }) }); signOut({ localOnly: true }); setDone(true); }
     catch (err) { setError(err.message); }
     finally { setBusy(false); }
   }

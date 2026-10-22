@@ -41,7 +41,7 @@ router.get("/", async (req, res) => {
     const page = Number(pageValue);
     const pageSize = Number(pageSizeValue);
     const escape = value => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const filter = { role: "freelancer", "profile.discoverable": true };
+    const filter = { role: "freelancer", "profile.discoverable": true, suspended: { $ne: true } };
     if (query) {
       const expression = new RegExp(escape(query), "i");
       filter.$or = [{ name: expression }, { "profile.headline": expression }, { "profile.bio": expression }, { "profile.skills": expression }];
@@ -93,7 +93,7 @@ router.get("/", async (req, res) => {
 
 router.get("/:freelancerId", async (req, res) => {
   if (!mongoose.Types.ObjectId.isValid(req.params.freelancerId)) return res.status(400).json({ message: "Invalid freelancer" });
-  const freelancer = await User.findOne({ _id: req.params.freelancerId, role: "freelancer", "profile.discoverable": true })
+  const freelancer = await User.findOne({ _id: req.params.freelancerId, role: "freelancer", "profile.discoverable": true, suspended: { $ne: true } })
     .select("name profile.headline profile.bio profile.skills profile.experienceYears profile.portfolioUrl profile.portfolioItems profile.availability profile.hourlyRate").lean();
   if (!freelancer) return res.status(404).json({ message: "Profile is not available" });
   const [projects, clientReviews] = await Promise.all([

@@ -14,9 +14,10 @@ function projectToForm(project) {
   return { title: project.title || "", description: project.description || "", category: project.category || "Other", customCategory: project.customCategory || "", requiredSkills: (project.requiredSkills || []).join(", "), budget: String(project.budget), deadline: project.deadline || "", milestones: steps.map((step, index) => ({ title: step.title, description: step.description || "", payment: String(step.payment), dueDate: step.dueDate || "", dependsOn: project.hasExplicitDependencies ? (step.dependsOn || []).map(id => steps.findIndex(prior => String(prior._id) === String(id?._id || id))).filter(i => i >= 0) : (index ? [index - 1] : []) })) };
 }
 
-export default function ProjectForm({ onClose, onCreated, initialProject }) {
+export default function ProjectForm({ onClose, onCreated, onSaved, initialProject, initialDraft }) {
   const dialogRef = useDialogAccessibility(requestClose);
-  const startingForm = useRef(initialProject ? projectToForm(initialProject) : initial());
+  const startingForm = useRef(initialProject ? projectToForm(initialProject) : initialDraft?.form || initial());
+  const draftRef = useRef(initialDraft || null);
   const [form, setForm] = useState(startingForm.current);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -29,12 +30,13 @@ export default function ProjectForm({ onClose, onCreated, initialProject }) {
   const [extractingSkills, setExtractingSkills] = useState(false);
   const [aiPlanFailed, setAiPlanFailed] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
+  const [draftNotice, setDraftNotice] = useState(initialDraft ? "Saved draft opened. Review dates and complete the brief before publishing." : "");
   const keepEditingRef = useRef(null);
   const dirty = JSON.stringify(form) !== JSON.stringify(startingForm.current);
   const categoryReady = Boolean(form.category) && (form.category !== "Other" || form.customCategory.trim().length >= 2);
 
   function requestClose() {
-    if (busy) { setError("Please wait for publishing to finish."); return; }
+    if (busy) { setError("Please wait for saving to finish."); return; }
     if (confirmClose) { setConfirmClose(false); return; }
     if (dirty) setConfirmClose(true); else onClose();
   }
@@ -135,6 +137,21 @@ export default function ProjectForm({ onClose, onCreated, initialProject }) {
     updateStep(index, { dependsOn: selected.includes(priorIndex) ? selected.filter(value => value !== priorIndex) : [...selected, priorIndex].sort((a, b) => a - b) });
   }
 
+  async function persistDraft() {
+    const current = draftRef.current;
+    const result = await api(current ? `/project-drafts/${current._id}` : "/project-drafts", { method: current ? "PATCH" : "POST", body: JSON.stringify({ form, ...(current ? { version: current.__v } : {}) }) });
+    draftRef.current = result.draft;
+    startingForm.current = form;
+    return result.draft;
+  }
+
+  async function saveForLater() {
+    setBusy(true); setError("");
+    try { await persistDraft(); setConfirmClose(false); setDraftNotice("Draft saved to your account."); if (onSaved) onSaved(); }
+    catch (err) { setError(err.message); }
+    finally { setBusy(false); }
+  }
+
   async function submit(event) {
     event.preventDefault();
     setError("");
@@ -149,17 +166,26 @@ export default function ProjectForm({ onClose, onCreated, initialProject }) {
     if (milestones.reduce((sum, step) => sum + toCents(step.payment), 0) > toCents(budget)) { setError("Milestone amounts exceed the project budget."); return; }
     setBusy(true);
     try {
+      if (draftRef.current) {
+        const draft = draftRef.current.state === "publishing" || draftRef.current.state === "published" ? draftRef.current : await persistDraft();
+        const result = await api(`/project-drafts/${draft._id}/publish`, { method: "POST", body: JSON.stringify({ version: draft.__v }) });
+        onCreated(result.project);
+        return;
+      }
       const result = await api(initialProject ? `/projects/${initialProject._id}/listing` : "/projects/create", { method: initialProject ? "PATCH" : "POST", body: JSON.stringify({ ...(initialProject ? { version: initialProject.__v || 0 } : {}), title: form.title.trim(), description: form.description.trim(), category: form.category, customCategory: form.category === "Other" ? form.customCategory.trim() : "", requiredSkills: skills, budget, deadline: form.deadline, milestones }) });
       onCreated(result.project);
     } catch (err) { setError(err.message); }
     finally { setBusy(false); }
   }
 
+  if (initialDraft && initialDraft.state !== "draft") return <div className="modal-overlay"><div className="dialog" role="dialog" aria-modal="true" aria-labelledby="create-project-title" ref={dialogRef} tabIndex={-1}><h2 id="create-project-title">Finish publishing your saved draft</h2><p>Publishing already started. Finish or recover the existing project before making further changes.</p>{error && <p className="message error" role="alert">{error}</p>}<div className="dialog-actions"><button type="button" className="button button-outline" disabled={busy} onClick={onClose}>Close</button><button type="button" className="button button-dark" disabled={busy} onClick={async () => { setBusy(true); setError(""); try { const result = await api(`/project-drafts/${initialDraft._id}/publish`, { method: "POST", body: JSON.stringify({ version: initialDraft.__v }) }); onCreated(result.project); } catch (err) { setError(err.message); } finally { setBusy(false); } }}>{busy ? "Publishing…" : "Finish publishing"}</button></div></div></div>;
+
   return <div className="modal-overlay" onMouseDown={event => { if (event.target === event.currentTarget) requestClose(); }}>
     <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="create-project-title" ref={dialogRef} tabIndex={-1}>
       <div className="dialog-heading"><div><p className="eyebrow">{initialProject ? "EDIT PROJECT" : "NEW PROJECT"}</p><h2 id="create-project-title">{initialProject ? "Edit project brief" : "Start with a clear brief"}</h2></div><button className="icon-button" type="button" onClick={requestClose} aria-label="Close">×</button></div>
-      {confirmClose && <div className="message" role="alert"><strong>Discard this project draft?</strong><p>{initialProject ? "Your saved project is unchanged. These edits have not been saved." : "Your entered brief and milestones have not been published."}</p><div className="dialog-actions"><button type="button" className="button button-outline" ref={keepEditingRef} onClick={() => setConfirmClose(false)}>Keep editing</button><button type="button" className="button button-dark" onClick={onClose}>Discard draft</button></div></div>}
+      {confirmClose && <div className="message" role="alert"><strong>Discard this project draft?</strong><p>{initialProject ? "Your saved project is unchanged. These edits have not been saved." : "These latest edits have not been saved. An earlier saved draft, if any, stays in your account."}</p><div className="dialog-actions"><button type="button" className="button button-outline" ref={keepEditingRef} onClick={() => setConfirmClose(false)}>Keep editing</button>{!initialProject && <button type="button" className="button button-outline" disabled={busy} onClick={saveForLater}>Save draft and close</button>}<button type="button" className="button button-dark" disabled={busy} onClick={onClose}>Discard draft</button></div></div>}
       {error && <p className="message error" role="alert">{error}</p>}
+      {draftNotice && <p className="message" role="status">{draftNotice}</p>}
       {initialProject && <p className="dialog-intro">Existing applicants will be notified. Previous offers become stale and need a fresh agreement. Editing does not reopen closed hiring.</p>}
       <form className="stack-form" onSubmit={submit}>
         <label>Project title<input required maxLength="120" value={form.title} onChange={event => updateProject("title", event.target.value)} placeholder="e.g. Brand identity refresh" /></label>
@@ -183,7 +209,7 @@ export default function ProjectForm({ onClose, onCreated, initialProject }) {
           {index > 0 && <fieldset className="dependency-picker"><legend>Unlock after</legend><div>{form.milestones.slice(0, index).map((prior, priorIndex) => <label key={priorIndex}><input type="checkbox" checked={step.dependsOn.includes(priorIndex)} onChange={() => toggleDependency(index, priorIndex)} />Step {priorIndex + 1}{prior.title ? ` · ${prior.title}` : ""}</label>)}</div><small>Leave all unchecked to make this step available from the start.</small></fieldset>}
         </div>)}
         <p className="form-help">Amounts are for planning only. Payments are not processed by this app.</p>
-        <div className="dialog-actions"><button className="button button-outline" type="button" onClick={requestClose}>Cancel</button><button className="button button-dark" disabled={busy}>{busy ? "Saving…" : initialProject ? "Save project changes" : "Publish project ↗"}</button></div>
+        <div className="dialog-actions"><button className="button button-outline" type="button" disabled={busy} onClick={requestClose}>Cancel</button>{!initialProject && <button className="button button-outline" type="button" disabled={busy || Boolean(draftRef.current && draftRef.current.state !== "draft")} onClick={saveForLater}>Save draft and close</button>}<button className="button button-dark" disabled={busy}>{busy ? "Saving…" : initialProject ? "Save project changes" : "Publish project ↗"}</button></div>
       </form>
     </div>
   </div>;

@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../api";
 import Shell from "../components/Shell";
+import Pagination from "../components/Pagination";
+import usePagedList from "../usePagedList";
 import useDialogAccessibility from "../useDialogAccessibility";
 
 export default function TalentDirectory() {
@@ -20,7 +22,8 @@ export default function TalentDirectory() {
   const [pages, setPages] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [openProjects, setOpenProjects] = useState([]);
+  const owned = usePagedList("/projects/mine?view=invitable");
+  const openProjects = owned.items;
   const [sent, setSent] = useState([]);
   const [invitePerson, setInvitePerson] = useState(null);
   const [inviteProject, setInviteProject] = useState("");
@@ -33,8 +36,8 @@ export default function TalentDirectory() {
   useEffect(() => { setDraft(query); }, [query]);
 
   useEffect(() => {
-    Promise.all([api("/projects/mine"), api("/invitations/sent")])
-      .then(([projects, invitations]) => { setOpenProjects(projects.filter(project => project.status === "Open")); setSent(invitations); })
+    api("/invitations/sent")
+      .then(invitations => { setSent(invitations); })
       .catch(err => setError(err.message));
   }, []);
 
@@ -77,11 +80,12 @@ export default function TalentDirectory() {
 
   async function sendInvite(event) {
     event.preventDefault();
-    if (!invitePerson || !inviteProject) return;
+    const chosenProject = inviteOptions.some(item => item._id === inviteProject) ? inviteProject : inviteOptions[0]?._id;
+    if (!invitePerson || !chosenProject) return;
     setInviteBusy(true); setInviteError("");
     try {
-      const result = await api("/invitations", { method: "POST", body: JSON.stringify({ projectId: inviteProject, freelancerId: invitePerson.id, note: inviteNote.trim() }) });
-      setSent(current => [...current, { _id: result.id, project: inviteProject, freelancer: invitePerson.id, status: result.status }]);
+      const result = await api("/invitations", { method: "POST", body: JSON.stringify({ projectId: chosenProject, freelancerId: invitePerson.id, note: inviteNote.trim() }) });
+      setSent(current => [...current, { _id: result.id, project: chosenProject, freelancer: invitePerson.id, status: result.status }]);
       setNotice(`Invitation sent to ${invitePerson.name}.`);
       setInvitePerson(null);
     } catch (err) { setInviteError(err.message); }
@@ -99,7 +103,7 @@ export default function TalentDirectory() {
       {loading ? <p className="empty-state" role="status">Loading talent…</p> : talent.length ? <div className="talent-grid">{talent.map(person => <article className="talent-card" key={person.id}><div className="talent-card-top"><div className="talent-avatar" aria-hidden="true">{person.name?.[0]?.toUpperCase() || "F"}</div><div><h3><Link to={`/talent/${person.id}`}>{person.name}</Link></h3><p>{person.headline}</p></div></div><p className="talent-bio">{person.bio}</p><div className="skill-list">{person.skills.map(item => <span className="skill-chip" key={item}>{item}</span>)}</div><div className="talent-facts"><span><strong>{person.experienceYears}</strong> years experience <small>Self-reported</small></span><span><strong>{({ available: "Available", limited: "Limited", unavailable: "Unavailable" })[person.availability] || "Availability not set"}</strong> availability <small>Profile provided</small></span>{person.hourlyRate != null && <span><strong>₹{Number(person.hourlyRate).toLocaleString("en-IN")}/hr</strong> stated rate <small>Freelancer-provided</small></span>}<span><strong>{person.trust?.score == null ? "New" : `${person.trust.score}/100`}</strong> verified work score <small>{person.trust?.score == null ? "No approved work yet" : `${person.trust.approvedMilestones} approved milestones`}</small></span></div>{person.portfolioItems?.length > 0 && <div className="talent-card-portfolio"><strong>Portfolio</strong>{person.portfolioItems.slice(0, 2).map((item, index) => <a key={`${item.url}-${index}`} href={item.url} target="_blank" rel="noreferrer">{item.title} ↗</a>)}</div>}{person.reviews?.count > 0 && <div className="talent-review-score">★ {person.reviews.average}/5 · {person.reviews.count} {person.reviews.count === 1 ? "review" : "reviews"} from completed projects</div>}<div className="talent-card-footer">{person.portfolioUrl ? <a href={person.portfolioUrl} target="_blank" rel="noreferrer">View portfolio ↗</a> : <span>Portfolio not added</span>}{openProjects.length ? <button type="button" onClick={() => openInvite(person)}>Invite to project →</button> : <Link to="/client-dashboard">Post a project →</Link>}</div></article>)}</div> : <div className="empty-state"><span>⌕</span><h3>No profiles found</h3><p>{query || skill || minExperience || maxExperience || availability ? "Try broadening your filters or search terms." : "Freelancers will appear here when they choose to show their profile to clients."}</p>{(query || skill || minExperience || maxExperience || availability) && <button className="button button-outline" onClick={clearFilters}>Clear filters</button>}</div>}
       {pages > 1 && <div className="talent-pagination"><button className="button button-outline" disabled={page === 1} onClick={() => updateFilters({ page: String(page - 1) }, false)}>← Previous</button><span>Page {page} of {pages}</span><button className="button button-outline" disabled={page >= pages} onClick={() => updateFilters({ page: String(page + 1) }, false)}>Next →</button></div>}
     </section>
-    {invitePerson && <div className="modal-overlay" onMouseDown={event => { if (event.target === event.currentTarget) setInvitePerson(null); }}><div className="dialog" role="dialog" aria-modal="true" aria-labelledby="invite-title" ref={inviteDialogRef} tabIndex={-1}><div className="dialog-heading"><div><p className="eyebrow">INVITE FREELANCER</p><h2 id="invite-title">Invite {invitePerson.name}</h2></div><button className="icon-button" onClick={() => setInvitePerson(null)} aria-label="Close">×</button></div>{inviteOptions.length ? <form className="stack-form" onSubmit={sendInvite}><label>Project<select required value={inviteProject} onChange={event => setInviteProject(event.target.value)}>{inviteOptions.map(project => <option value={project._id} key={project._id}>{project.title}</option>)}</select></label><label>Personal message<textarea required minLength="10" maxLength="1000" rows="5" value={inviteNote} onChange={event => setInviteNote(event.target.value)} placeholder="Tell the freelancer why this project fits their experience…" /></label><p className="form-help">The freelancer can review the project and choose whether to send a proposal.</p>{inviteError && <p className="message error" role="alert">{inviteError}</p>}<div className="dialog-actions"><button type="button" className="button button-outline" onClick={() => setInvitePerson(null)}>Cancel</button><button className="button button-dark" disabled={inviteBusy || inviteNote.trim().length < 10}>{inviteBusy ? "Sending…" : "Send invitation ↗"}</button></div></form> : <div className="empty-state"><h3>Already invited</h3><p>You have invited this freelancer to all your open projects.</p><button className="button button-outline" onClick={() => setInvitePerson(null)}>Close</button></div>}</div></div>}
+    {invitePerson && <div className="modal-overlay" onMouseDown={event => { if (event.target === event.currentTarget) setInvitePerson(null); }}><div className="dialog" role="dialog" aria-modal="true" aria-labelledby="invite-title" ref={inviteDialogRef} tabIndex={-1}><div className="dialog-heading"><div><p className="eyebrow">INVITE FREELANCER</p><h2 id="invite-title">Invite {invitePerson.name}</h2></div><button className="icon-button" onClick={() => setInvitePerson(null)} aria-label="Close">×</button></div>{owned.error && <p className="message error" role="alert">{owned.error}</p>}<Pagination {...owned} onPage={owned.setPage} label="open projects" />{inviteOptions.length ? <form className="stack-form" onSubmit={sendInvite}><label>Project<select required value={inviteOptions.some(item => item._id === inviteProject) ? inviteProject : inviteOptions[0]?._id || ""} onChange={event => setInviteProject(event.target.value)}>{inviteOptions.map(project => <option value={project._id} key={project._id}>{project.title}</option>)}</select></label><label>Personal message<textarea required minLength="10" maxLength="1000" rows="5" value={inviteNote} onChange={event => setInviteNote(event.target.value)} placeholder="Tell the freelancer why this project fits their experience…" /></label><p className="form-help">The freelancer can review the project and choose whether to send a proposal.</p>{inviteError && <p className="message error" role="alert">{inviteError}</p>}<div className="dialog-actions"><button type="button" className="button button-outline" onClick={() => setInvitePerson(null)}>Cancel</button><button className="button button-dark" disabled={inviteBusy || inviteNote.trim().length < 10}>{inviteBusy ? "Sending…" : "Send invitation ↗"}</button></div></form> : <div className="empty-state"><h3>Already invited</h3><p>No available projects on this page. Browse another page or create a new project.</p><button className="button button-outline" onClick={() => setInvitePerson(null)}>Close</button></div>}</div></div>}
   </Shell>;
 }
 

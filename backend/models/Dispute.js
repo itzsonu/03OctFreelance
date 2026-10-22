@@ -20,5 +20,6 @@ const disputeSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 disputeSchema.index({ project: 1, status: 1 }, { unique: true, partialFilterExpression: { status: "open" } });
+disputeSchema.index({ status: 1, updatedAt: -1, _id: -1 });
 
 module.exports = mongoose.model("Dispute", disputeSchema);
