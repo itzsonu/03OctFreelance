@@ -1,6 +1,8 @@
 import { useEffect, useRef } from "react";
 
 const controls = 'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+let openDialogs = 0;
+let previousOverflow = "";
 
 export default function useDialogAccessibility(onClose, active = true) {
   const dialogRef = useRef(null);
@@ -11,6 +13,10 @@ export default function useDialogAccessibility(onClose, active = true) {
     if (!active || !dialogRef.current) return undefined;
     const dialog = dialogRef.current;
     const previouslyFocused = document.activeElement;
+    if (openDialogs++ === 0) {
+      previousOverflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+    }
     dialog.focus();
 
     function onKeyDown(event) {
@@ -37,6 +43,7 @@ export default function useDialogAccessibility(onClose, active = true) {
     document.addEventListener("keydown", onKeyDown);
     return () => {
       document.removeEventListener("keydown", onKeyDown);
+      if (--openDialogs === 0) document.body.style.overflow = previousOverflow;
       if (previouslyFocused?.isConnected) previouslyFocused.focus();
     };
   }, [active]);

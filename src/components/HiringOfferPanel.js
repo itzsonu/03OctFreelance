@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import React, { useEffect, useState } from "react";
 import { api, currentUser } from "../api";
 import { toCents } from "../money";
@@ -102,7 +103,7 @@ export default function HiringOfferPanel({ application: initialApplication, proj
 
   return <section className="hiring-offer-panel" aria-label="Project offer and agreement">
     {!canHire && application.status === "PENDING" && <p className="form-help">Hiring is closed for this project. Your proposal and offer history are retained.</p>}
-    {role === "freelancer" && canHire && project._id && <a href={`/jobs/${project._id}`}>Read latest project brief ↗</a>}
+    {role === "freelancer" && canHire && project._id && <Link to={`/jobs/${project._id}?from=applications`}>Read latest project brief →</Link>}
     {!currentRevision && <p className="form-help">The project brief changed. Review the latest brief and ask the client for a fresh offer.</p>}
     <div className="hiring-offer-heading"><div><strong>Terms and agreement</strong><small>Proposed amounts are not payments.</small></div>{application.status === "ACCEPTED" && <span className="status status-completed">Agreed</span>}</div>
     {application.offers?.length > 0 && <div className="offer-version-list"><h4>Offer history</h4>{[...application.offers].reverse().map(offer => <article className="offer-version" key={offer._id}><div><strong>Version {offer.version}</strong><span className={`offer-state ${offer.status.toLowerCase()}`}>{offer.status === "OPEN" ? "Awaiting response" : offer.status.toLowerCase()}</span></div><p>{String(offer.createdBy) === String(userId) ? "Proposed by you" : `Proposed by ${role === "client" ? "freelancer" : "client"}`} · {new Date(offer.createdAt).toLocaleString()} · {money(offer.terms.amount)} planned · due {offer.terms.deliveryDate}</p><p className="offer-scope">{offer.terms.scope}</p><ul>{offer.terms.milestones.map((milestone, index) => <li key={`${offer._id}-${index}`}>{milestone.title} · {money(milestone.payment)} planned · {milestone.dependsOn === undefined ? (index ? `After step ${index}` : "Available from the start") : milestone.dependsOn.length ? `After steps ${milestone.dependsOn.map(prior => prior + 1).join(", ")}` : "Available from the start"}{milestone.dueDate ? ` · ${milestone.dueDate}` : ""}</li>)}</ul><small>Agreed by {offer.acceptances.map(acceptance => String(acceptance.actor) === String(userId) ? "you" : role === "client" ? "freelancer" : "client").join(" and ")}</small></article>)}</div>}

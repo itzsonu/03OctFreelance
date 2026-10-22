@@ -1,3 +1,4 @@
+import ApplicationStatus from "../components/ApplicationStatus";
 import { projectCategoryLabel } from "../projectCategory";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
@@ -42,7 +43,7 @@ export default function FreelancerDashboard() {
   const [savedIds, setSavedIds] = useState([]);
   const [invitations, setInvitations] = useState([]);
   const [messageApplication, setMessageApplication] = useState(null);
-  const [tab, setTab] = useState("discover");
+  const [tab, setTab] = useState(() => searchParams.get("view") === "applications" ? "applications" : "discover");
   const [selected, setSelected] = useState(null);
   const [proposal, setProposal] = useState("");
   const [proposedPrice, setProposedPrice] = useState("");
@@ -249,7 +250,7 @@ export default function FreelancerDashboard() {
       {tab === "applications" && (loading ? <p role="status">Loading applications…</p> : applications.length === 0 ? <div className="empty-state"><span>✦</span><h3>No applications yet</h3><p>Find an open project and send your first proposal.</p></div> : <div className="simple-list">{applications.map(application => <article className="application-thread" key={application._id}>
         <div className="project-initial">{application.project?.title?.[0] || "P"}</div>
         <div className="application-summary"><strong>{application.project?.title || "Project unavailable"}</strong><small>Sent {new Date(application.createdAt).toLocaleDateString()} · {application.proposal}</small><small>Proposed {application.proposedPrice == null ? "price not provided" : `${money(application.proposedPrice)} planned`} · {application.deliveryEstimateDays == null ? "delivery estimate not provided" : `${application.deliveryEstimateDays} days`}</small></div>
-        <span className={`status status-${application.status.toLowerCase()}`}>{application.status}</span>
+        <ApplicationStatus application={application} project={application.project} role="freelancer" userId={user?.id} />
         {application.project?._id && <button className="text-button" onClick={() => setMessageApplication(current => current === application._id ? null : application._id)}>{messageApplication === application._id ? "Hide messages" : "Messages"}</button>}
         {application.status === "ACCEPTED" && application.project?._id && <Link className="button button-outline" to={`/milestones/${application.project._id}`}>View project ↗</Link>}
         {application.status === "PENDING" && application.project?.status === "Open" && <><button className="button button-outline" onClick={() => editApplication(application)}>Edit proposal</button><button className="button button-outline" disabled={busy} onClick={() => withdrawApplication(application)}>Withdraw</button></>}

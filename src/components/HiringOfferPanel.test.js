@@ -1,8 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render as renderView, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import HiringOfferPanel from "./HiringOfferPanel";
 import { api } from "../api";
 
 jest.mock("../api", () => ({ api: jest.fn(), currentUser: () => ({ id: "freelancer-1" }) }));
+const render = ui => renderView(<MemoryRouter>{ui}</MemoryRouter>);
 
 const project = { status: "Open", _id: "project-1", title: "Dashboard", budget: 12000, deadline: "2030-11-20" };
 const offer = { _id: "offer-1", version: 1, createdBy: "client-1", createdAt: "2030-10-01T12:00:00.000Z", status: "OPEN", terms: { scope: "Build and review the agreed responsive dashboard.", amount: 12000, deliveryDate: "2030-11-20", milestones: [{ title: "Delivery", description: "Implement dashboard.", payment: 12000, dueDate: "2030-11-20" }] }, acceptances: [{ actor: "client-1", acceptedAt: "2030-10-01T12:00:00.000Z" }] };

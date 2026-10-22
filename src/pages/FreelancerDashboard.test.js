@@ -41,7 +41,7 @@ test("proposal is sent with the required message", async () => {
   })));
 });
 
-test("freelancer can edit and withdraw a pending proposal", async () => {
+test("returning from a brief opens applications where the freelancer can edit and withdraw", async () => {
   const application = { _id: "application-7", proposal: "I can build the first version and support review.", proposedPrice: 7000, deliveryEstimateDays: 18, portfolioLinks: [], answers: [], status: "PENDING", createdAt: "2026-09-27T00:00:00Z", project: { _id: "project-7", title: "Portal", status: "Open" }, offers: [], currentOfferState: "NONE" };
   api.mockReset();
   api.mockImplementation((path, options) => {
@@ -53,8 +53,9 @@ test("freelancer can edit and withdraw a pending proposal", async () => {
     if (path === "/applications/application-7/withdraw" && options?.method === "POST") return Promise.resolve({});
     return Promise.reject(new Error(`Unexpected request ${path}`));
   });
-  render(<MemoryRouter><FreelancerDashboard /></MemoryRouter>);
-  fireEvent.click(await screen.findByRole("tab", { name: /my applications/i }));
+  render(<MemoryRouter initialEntries={["/freelancer-dashboard?view=applications"]}><FreelancerDashboard /></MemoryRouter>);
+  expect(await screen.findByText("Proposal sent")).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Read latest project brief →" })).toHaveAttribute("href", "/jobs/project-7?from=applications");
   fireEvent.click(await screen.findByRole("button", { name: "Edit proposal" }));
   fireEvent.change(screen.getByLabelText("Proposed price"), { target: { value: "6500" } });
   fireEvent.click(screen.getByRole("button", { name: "Save proposal" }));
