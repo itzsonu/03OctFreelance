@@ -1,0 +1,31 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "db.js",
+  "scripts": {
+    "start": "node server.js",
+    "demo:seed": "node scripts/seedDemo.js",
+    "admin:create": "node scripts/createAdmin.js",
+    "test:integration": "node integration.test.js",
+    "eval:matching": "node matchingEvaluation.js",
+    "ai:check": "node scripts/checkAi.js",
+    "eval:research": "node researchEvaluation.js",
+    "test:lifecycle": "node projectLifecycle.test.js",
+    "test:changes": "node accountAndChanges.test.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "mongoose": "^9.6.2",
+    "multer": "^2.4.0",
+    "nodemailer": "^10.0.11"
+  }
+}

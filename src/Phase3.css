@@ -1,0 +1,36 @@
+.skill-list{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:13px 0}
+.skill-list.compact{margin:7px 0 0}
+.skill-chip{display:inline-flex;align-items:center;border-radius:6px;background:var(--surface);color:var(--brand);padding:5px 8px;font-size:14px;font-weight:700;line-height:1.2}
+.skill-list.compact .skill-chip{padding:4px 6px;font-size:14px}
+.stack-form label small{font-size:14px;color:var(--muted);font-weight:500;line-height:1.4}
+.project-table-row .project-main>div:last-child{min-width:0}
+.discover-filters{display:flex;align-items:end;gap:12px;padding:23px 25px 0}
+.discover-filters .search-field{margin:0;flex:1;max-width:none}
+.select-field{display:grid;gap:5px;font-size:14px;font-weight:800;color:var(--muted);min-width:170px}
+.select-field select{min-height:40px;border:1px solid var(--line);border-radius:9px;background:#fff;color:var(--ink);padding:0 10px;font-size:15px}
+.card-brief{font-size:15px;line-height:1.65;color:var(--muted);min-height:58px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:5px}
+.discover-card .skill-list{min-height:27px;margin:10px 0 18px}
+.discover-card .card-facts{margin-top:auto}
+.discover-card{display:flex;flex-direction:column}
+.profile-layout{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(230px,.6fr);gap:20px;align-items:start}
+.profile-form-panel .stack-form{padding:25px}
+.profile-form-panel .stack-form>.button{justify-self:start}
+.profile-help{background:var(--surface);border-radius:15px;padding:28px;color:var(--brand)}
+.profile-help>span{font-size:30px;color:var(--brand)}
+.profile-help h3{font-size:18px;color:var(--brand);margin:25px 0 10px}
+.profile-help p{font-size:15px;line-height:1.8;color:var(--brand);margin:0}
+.applicant-profile{display:grid;grid-template-columns:110px 1fr;gap:12px;border-top:1px solid var(--line);padding-top:15px;margin-top:15px}
+.applicant-profile>div>span,.proposal-box>span{display:block;color:var(--muted);font-size:14px;font-weight:800;letter-spacing:.12em;margin-bottom:6px}
+.applicant-profile strong{font-size:15px}
+.applicant-profile .skill-list{margin:0}
+.applicant-profile p{grid-column:1/-1;margin:2px 0!important;white-space:pre-wrap}
+.applicant-profile a{grid-column:1/-1;color:var(--brand);font-size:14px;font-weight:800}
+.proposal-box{margin:18px 0;padding:15px;background:var(--paper);border-radius:10px}
+.proposal-box p{margin:0!important;color:var(--text-soft)!important;white-space:pre-wrap}
+.brief-facts{display:flex;gap:25px;padding:18px 0;border-block:1px solid var(--line);font-size:14px;color:var(--muted)}
+.brief-facts strong{color:var(--ink);margin-left:5px}
+.brief-milestones{padding:18px 0 10px}
+.brief-milestones>strong{display:block;font-size:15px;margin-bottom:8px}
+.brief-milestones>div{display:flex;justify-content:space-between;gap:15px;padding:9px 0;border-bottom:1px solid var(--line);font-size:14px}
+.brief-milestones small{color:var(--muted);white-space:nowrap}
+@media(max-width:900px){.profile-layout{grid-template-columns:1fr}.profile-help{display:none}.discover-filters{padding:17px;flex-direction:column;align-items:stretch}.select-field{width:100%}.applicant-profile{grid-template-columns:1fr}.applicant-profile p,.applicant-profile a{grid-column:1}}

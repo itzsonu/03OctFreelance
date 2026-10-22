@@ -1,0 +1,9 @@
+{
+  "short_name": "FreelanceChain",
+  "name": "FreelanceChain",
+  "icons": [{ "src": "favicon.svg", "type": "image/svg+xml", "sizes": "any" }],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#292724",
+  "background_color": "#F7F3EC"
+}

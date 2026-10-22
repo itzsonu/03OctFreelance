@@ -1,0 +1,5 @@
+.live-heading{display:flex;align-items:center;justify-content:flex-end;gap:9px;flex-wrap:wrap}
+.live-pill{display:inline-flex;align-items:center;gap:6px;border:1px solid #cae5d2;border-radius:20px;background:#edf8ef;color:#2b7248;padding:6px 9px;font-size:14px;font-weight:750;white-space:nowrap}
+.live-pill::before{content:"";width:6px;height:6px;border-radius:50%;background:#3eab68}
+.live-pill.reconnecting{border-color:#eee0c3;background:#fff8e9;color:#8c681f}
+.live-pill.reconnecting::before{background:#cf9d39}

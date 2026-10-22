@@ -1,0 +1,12 @@
+.shortlist-intro{font-size:14px;line-height:1.6;color:var(--muted);background:var(--paper);border-radius:9px;padding:12px 14px;margin:0 0 16px}
+.match-summary{background:var(--paper);border:1px solid var(--line);border-radius:11px;padding:14px;margin:15px 0}
+.match-summary>div:first-child{display:flex;justify-content:space-between;gap:10px;align-items:center}
+.match-summary strong{color:var(--brand);font-size:15px}.match-summary span{font-size:14px;color:var(--brand);font-weight:700}
+.match-track{height:6px;border-radius:9px;background:var(--brand-soft);overflow:hidden;margin:10px 0}.match-track span{display:block;height:100%;background:var(--brand)}
+.match-summary p{font-size:14px;line-height:1.6;color:var(--text-soft);margin:0 0 6px}.match-summary small{font-size:14px;color:var(--brand)}
+.trust-summary{border:1px solid var(--line);border-radius:10px;padding:13px;margin:15px 0}
+.trust-summary>div{display:flex;justify-content:space-between;gap:10px;align-items:center}.trust-summary span{font-size:14px;font-weight:800;letter-spacing:.12em;color:var(--muted)}.trust-summary strong{font-size:15px;color:var(--brand)}
+.trust-summary p{font-size:14px;margin:9px 0 3px;color:var(--text-soft)}.trust-summary small{font-size:14px;color:var(--muted);line-height:1.5}
+.trust-summary .trust-evidence,.trust-profile-card .trust-evidence{background:var(--paper);border-radius:9px;padding:9px 11px;color:var(--brand);font-weight:600}
+.profile-side{display:grid;gap:15px}.trust-profile-card{background:#fff;border:1px solid var(--line);border-radius:15px;padding:25px}.trust-profile-card h3{font-size:18px;margin:0 0 14px}.trust-profile-card>strong{font-size:32px;color:var(--brand);font-family:Manrope,Arial,sans-serif}.trust-profile-card>p:not(.eyebrow){font-size:14px;line-height:1.7;color:var(--text-soft);margin:10px 0}.trust-profile-card small{font-size:14px;line-height:1.5;color:var(--muted)}
+@media(max-width:900px){.profile-side .profile-help{display:block}.match-summary>div:first-child{align-items:start;flex-direction:column}}

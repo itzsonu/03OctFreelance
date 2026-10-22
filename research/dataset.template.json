@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 2,
+  "provenance": {
+    "sourceType": "independent_consented",
+    "datasetToken": "dataset-replace01",
+    "consented": false,
+    "anonymized": false,
+    "independentLabels": false,
+    "scoresHiddenDuringLabelling": false,
+    "reviewerCount": 0,
+    "holdoutUnusedForTuning": false,
+    "split": "holdout",
+    "externalProcessingConsented": false
+  },
+  "cases": []
+}

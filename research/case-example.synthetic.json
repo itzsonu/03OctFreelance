@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 2,
+  "provenance": {
+    "sourceType": "synthetic",
+    "datasetToken": "dataset-example01",
+    "consented": false,
+    "anonymized": true,
+    "independentLabels": false,
+    "scoresHiddenDuringLabelling": false,
+    "reviewerCount": 0,
+    "holdoutUnusedForTuning": false,
+    "split": "development",
+    "externalProcessingConsented": false
+  },
+  "cases": [
+    {
+      "caseId": "case-f0a1",
+      "groupToken": "group-p0a1",
+      "project": {
+        "category": "Writing & Translation",
+        "title": "A software onboarding guide",
+        "description": "Create a technical guide for first-time users of a scheduling application, with clear onboarding instructions and an editorial review.",
+        "requiredSkills": ["Technical writing", "Proofreading"]
+      },
+      "candidates": [
+        {
+          "id": "candidate-c73f",
+          "experienceGroup": "experienced",
+          "profile": {
+            "skills": ["Technical writing", "Proofreading"],
+            "experienceYears": 4,
+            "headline": "Technical documentation writer",
+            "bio": "Onboarding guides, application instructions and editorial review."
+          },
+          "proposal": "I will prepare an outline, write the guide and proofread the final copy.",
+          "history": { "recordedBeforeCase": true, "projects": [] }
+        },
+        {
+          "id": "candidate-a51e",
+          "experienceGroup": "experienced",
+          "profile": { "skills": ["React", "Node.js"], "experienceYears": 6, "headline": "Web developer", "bio": "Scheduling applications and dashboard implementation." },
+          "proposal": "I can implement the scheduling application.",
+          "history": {
+            "recordedBeforeCase": true,
+            "projects": [{ "clientToken": "client-c012", "status": "Completed", "milestones": [{ "status": "completed", "revisionCount": 0 }] }]
+          }
+        },
+        {
+          "id": "candidate-b62a",
+          "experienceGroup": "new",
+          "profile": { "skills": ["Copywriting"], "experienceYears": 1, "headline": "Marketing writer", "bio": "Promotional content and product launches." },
+          "proposal": "I will prepare promotional copy."
+        }
+      ],
+      "relevantApplicantIds": ["candidate-c73f"]
+    }
+  ]
+}

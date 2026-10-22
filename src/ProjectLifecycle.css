@@ -1,0 +1,18 @@
+.project-controls{margin:0 0 24px}
+.project-controls-body{padding:22px;overflow-wrap:anywhere}
+.project-controls-body>p,.project-controls-body form>p,.cancellation-pending>p{color:var(--muted);line-height:1.6}
+.project-controls-actions{display:flex;flex-wrap:wrap;gap:10px;margin:16px 0}
+.project-controls-body>.danger{margin-top:14px}
+.project-controls-body label{display:grid;gap:8px;font-weight:600;margin-top:16px}
+.project-controls-body textarea{width:100%;min-width:0;border:1px solid var(--line);border-radius:8px;padding:12px;font:inherit;color:var(--ink);background:#fff}
+.cancellation-pending{border:1px solid var(--brand-line);border-radius:10px;background:var(--brand-soft);padding:18px}
+.project-history{margin-top:18px;border-top:1px solid var(--line);padding-top:16px}
+.project-history summary{cursor:pointer;font-weight:700;color:var(--brand)}
+.project-history article{padding:14px 0;border-bottom:1px solid var(--line)}
+.project-history small{display:block;color:var(--muted);margin-top:5px}
+.project-history p{white-space:pre-wrap;line-height:1.6}
+.status-closed{background:var(--surface);color:var(--text-soft)}
+.status-cancelled{background:var(--brand-soft);color:var(--brand)}
+@media(max-width:650px){.project-controls-body{padding:17px}.project-controls-actions .button{flex:1 1 160px}.row-actions{flex-wrap:wrap}}
+
+.project-changes{margin-bottom:24px}.change-scope{white-space:pre-wrap;line-height:1.6;overflow-wrap:anywhere}.change-terms{margin:14px 0}.change-terms li{padding:10px 0;border-bottom:1px solid var(--line)}.change-terms li p{margin:6px 0}.change-step{border:1px solid var(--line);padding:16px;border-radius:10px;min-width:0}.change-step legend{font-weight:700}.change-step input:disabled,.change-step textarea:disabled{color:var(--text-soft);background:var(--surface);opacity:1}

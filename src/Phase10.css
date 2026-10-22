@@ -1,0 +1,5 @@
+.ai-comparison{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:15px;background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:17px;margin:16px 0}
+.ai-comparison>div{flex:1 1 270px}.ai-comparison strong{font-size:15px;color:var(--brand)}.ai-comparison p,.ai-comparison small{font-size:14px;line-height:1.6;color:var(--muted);margin:7px 0 0}.ai-comparison .button{flex:none}
+.ai-comparison .ai-explanation{flex-basis:100%;border-top:1px solid var(--line);padding-top:12px;margin:0;font-weight:700}
+.ai-result{display:grid;gap:5px;padding:12px 14px;margin:13px 0 0;border:1px solid var(--line);border-radius:9px;background:var(--surface)}
+.ai-result strong{font-size:15px;color:var(--brand)}.ai-result span{font-size:14px;font-weight:700;color:var(--brand)}.ai-result small{font-size:14px;line-height:1.5;color:var(--muted)}
