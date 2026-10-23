@@ -41,5 +41,34 @@
 .task-editor .message{display:block;line-height:1.6;overflow-wrap:anywhere}
 .task-board-entry{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:20px 24px;margin:20px 0}
 .task-board-entry h2{font-size:19px;margin:0 0 7px}.task-board-entry p{margin:0;color:var(--muted);font-size:14px;line-height:1.6}
+.task-filters{padding:18px;margin-bottom:18px}
+.task-filters>summary{font-size:15px;font-weight:500;cursor:pointer;min-height:26px;line-height:1.6}.task-filters[open]>summary{margin-bottom:18px}
+.task-filters fieldset{border:0;padding:0;margin:0;min-width:0;display:grid;grid-template-columns:minmax(200px,1.6fr) repeat(3,minmax(115px,1fr));gap:12px;align-items:end}
+.task-filters label{display:grid;gap:8px;min-width:0;font-size:13px;font-weight:500}
+.task-filters input,.task-filters select{width:100%;min-width:0;min-height:44px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);font:inherit;font-size:14px}
+.task-filters .button{min-height:44px;justify-content:center}
+.task-board-progress{display:flex;gap:24px;align-items:center;padding:20px;margin-bottom:16px}
+.task-board-progress>div{display:grid;gap:5px;min-width:200px}.task-board-progress strong{font-size:16px}.task-board-progress span{font-size:13px;color:var(--muted)}
+.task-board-progress progress{flex:1;min-width:80px;accent-color:var(--accent);height:12px;max-width:420px}.task-board-progress .task-overdue-total{color:#a5453b;white-space:nowrap}
+.task-move-help,.task-saving,.task-no-matches{font-size:14px;color:var(--muted);line-height:1.6;margin:12px 0}.task-no-matches{padding:16px;background:var(--surface);border-radius:10px}.task-saving{color:var(--accent-ink)}
+.task-card-top{display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap}
+.task-drag-handle{display:inline-flex;gap:4px;align-items:center;min-height:32px;border:1px solid var(--line);border-radius:6px;padding:4px 7px;background:var(--paper);color:var(--muted);font-size:13px;cursor:grab;touch-action:auto}
+.task-drag-handle:active{cursor:grabbing}.task-is-dragging{opacity:.5}.task-drop-target{outline:2px solid var(--accent);outline-offset:2px;background:var(--paper)}
+.task-date-overdue{color:#a5453b}.task-date-overdue strong{font-weight:500}
+.task-card-checklist{border-top:1px solid var(--line);margin-top:14px;padding-top:5px}
+.task-card-checklist summary{font-size:13px;line-height:1.5;padding:10px 0;cursor:pointer;color:var(--ink)}
+.task-card-checklist progress{width:100%;height:8px;accent-color:var(--accent);display:block;margin:5px 0 12px}
+.task-card-checklist label{display:flex;gap:9px;align-items:flex-start;padding:8px 0;font-size:13px;line-height:1.6;overflow-wrap:anywhere}
+.task-card-checklist input[type=checkbox]{width:17px;height:17px;flex:none;margin-top:3px;accent-color:var(--accent)}
+.task-card-checklist input:checked+span{text-decoration:line-through;color:var(--muted)}
+.task-card-checklist small{display:block;line-height:1.5;color:#80501a;margin-top:8px}
+.task-checklist-editor{border-top:1px solid var(--line);padding-top:18px;margin-top:4px}
+.task-checklist-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}.task-checklist-heading h3{margin:0;font-size:17px}.task-checklist-heading span{font-size:13px;color:var(--muted)}
+.task-checklist-edit-row{display:grid;grid-template-columns:20px minmax(0,1fr) 36px;gap:10px;align-items:center;margin-bottom:12px}
+.task-checklist-edit-row>input[type=checkbox]{width:18px;height:18px;min-height:0;padding:0;accent-color:var(--accent);margin:0}
+.task-checklist-edit-row .icon-button{width:36px;height:44px}.task-checklist-edit-row .visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.task-checklist-editor>.form-help:last-child{display:block;margin:12px 0 0}
 @media(max-width:1200px){.task-board-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.task-board-toolbar{align-items:flex-start;flex-direction:column}.task-board-actions{max-width:none;justify-content:flex-start}}
+@media(max-width:1100px){.task-filters fieldset{grid-template-columns:repeat(2,minmax(0,1fr))}.task-board-progress{flex-wrap:wrap}.task-board-progress progress{max-width:none}}
 @media(max-width:640px){.task-board-grid{grid-template-columns:1fr}.task-column{min-height:140px}.task-project-grid{grid-template-columns:1fr;padding:16px}.task-board-toolbar{padding:18px}.task-board-actions{width:100%}.task-board-actions .button{flex:1 1 130px;justify-content:center;white-space:normal;text-align:center}.task-board-entry{align-items:flex-start;flex-direction:column;padding:18px}.task-editor .form-row{grid-template-columns:1fr}.task-status-control select,.task-editor select{font-size:16px}.task-editor-actions .button{flex:1;justify-content:center}}
+@media(max-width:640px){.task-filters fieldset{grid-template-columns:1fr}.task-filters input,.task-filters select{font-size:16px}.task-board-progress{gap:14px}.task-board-progress progress{flex-basis:100%;order:3}.task-checklist-edit-row{grid-template-columns:18px minmax(0,1fr) 32px;gap:8px}.task-checklist-edit-row .icon-button{width:32px}.task-drag-handle{min-height:44px}.task-card-checklist summary{min-height:44px}}

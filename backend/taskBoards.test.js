@@ -85,6 +85,40 @@ test("private task boards for assigned freelancers", async t => {
       assert.equal(first.total, 54); assert.equal(first.items.length, 50); assert.equal(last.items.length, 4);
       assert.equal(new Set([...first.items, ...last.items].map(item => item._id)).size, 54);
     });
+    await t.test("checklists keep stable identities, validate edits and leave parent status independent", async () => {
+      const path = `/task-boards/${second._id}`;
+      let item = (await call("POST", `${path}/tasks`, owner, { title: "Checklist parent", checklist: [{ title: "  First step  " }, { title: "Second step", done: false }] }, 201)).task;
+      assert.equal(item.checklist[0].title, "First step"); assert.equal(item.checklist[0].done, false);
+      const firstId = item.checklist[0]._id;
+      item = (await call("PATCH", `${path}/tasks/${item._id}`, owner, { checklist: item.checklist.map(step => ({ ...step, done: true })), version: item.version })).task;
+      assert.equal(item.checklist[0]._id, firstId); assert.equal(item.checklist.every(step => step.done), true); assert.equal(item.status, "todo");
+      await call("PATCH", `${path}/tasks/${item._id}`, owner, { checklist: [], version: 0 }, 409);
+      for (const checklist of [[{ title: "", done: false }], [{ title: "Step", done: "yes" }], Array.from({ length: 31 }, () => ({ title: "Too many" })), [{ _id: String(new mongoose.Types.ObjectId()), title: "Foreign step", done: true }]]) await call("POST", `${path}/tasks`, owner, { title: "Invalid checklist", checklist }, 400);
+      await call("PATCH", `${path}/tasks/${item._id}`, owner, { checklist: [item.checklist[0], item.checklist[0]], version: item.version }, 400);
+      item = (await call("PATCH", `${path}/tasks/${item._id}`, owner, { checklist: [{ ...item.checklist[0], title: "Renamed step" }], version: item.version })).task;
+      assert.equal(item.checklist.length, 1); assert.equal(item.checklist[0]._id, firstId);
+      await ProjectTask.updateOne({ _id: task._id }, { $unset: { checklist: 1 } });
+      assert.deepEqual((await call("GET", board, owner)).items[0].checklist, []);
+    });
+    await t.test("search, filters and progress cover all private tasks before pagination", async () => {
+      const path = `/task-boards/${second._id}`;
+      await ProjectTask.insertMany(Array.from({ length: 51 }, (_, index) => ({ project: second._id, owner: owner.user._id, title: `Earlier filler ${index}` })));
+      const special = await ProjectTask.create({ project: second._id, owner: owner.user._id, title: "Escape [UI]. work", description: "Billing review", priority: "high", status: "in_progress", dueDate: "2030-03-09", checklist: [{ title: "Confirm invoice", done: false }] });
+      await ProjectTask.create({ project: second._id, owner: owner.user._id, title: "Due today", priority: "high", dueDate: "2030-03-10" });
+      await ProjectTask.create({ project: second._id, owner: owner.user._id, title: "Finished past date", priority: "high", status: "done", dueDate: "2030-03-01" });
+      await ProjectTask.create({ project: foreign._id, owner: other.user._id, title: "Escape [UI]. work", description: "Confirm invoice", priority: "high", dueDate: "2030-03-01" });
+      const filtered = await call("GET", `${path}?priority=high&due=overdue&today=2030-03-10&pageSize=1`, owner);
+      assert.equal(filtered.total, 1); assert.equal(filtered.items[0]._id, String(special._id)); assert.equal(filtered.counts.in_progress, 1);
+      assert.deepEqual(filtered.summary, { total: 55, done: 1, overdue: 1 });
+      const byStep = await call("GET", `${path}?q=invoice&pageSize=1`, owner); assert.equal(byStep.total, 1); assert.equal(byStep.items[0]._id, String(special._id));
+      const literal = await call("GET", `${path}?q=${encodeURIComponent("Escape [UI].")}`, owner); assert.equal(literal.total, 1);
+      assert.equal((await call("GET", `${path}?q=${encodeURIComponent(".*")}`, owner)).total, 0);
+      const first = await call("GET", `${path}?priority=high&pageSize=1&page=1`, owner), last = await call("GET", `${path}?priority=high&pageSize=1&page=3`, owner);
+      assert.equal(first.total, 3); assert.equal(last.pages, 3); assert.notEqual(first.items[0]._id, last.items[0]._id);
+      assert.equal((await call("GET", `${path}?status=done&due=overdue&today=2030-03-10`, owner)).total, 0);
+      for (const query of ["status=approved", "priority=invalid", "today=2030-02-30", "due=tomorrow", "q[x]=value"]) await call("GET", `${path}?${query}`, owner, undefined, 400);
+      await call("GET", `${path}?q=invoice`, other, undefined, 404);
+    });
     await t.test("ended projects keep readable tasks and reject mutations", async () => {
       for (const status of ["Completed", "Cancelled"]) {
         await Project.updateOne({ _id: project._id }, { $set: { status } });
