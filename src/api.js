@@ -1,3 +1,4 @@
+import { announceSessionChange } from "./sessionChanges";
 const API_BASE = (process.env.REACT_APP_API_URL || (process.env.NODE_ENV === "production" ? "/api" : "http://localhost:5000/api")).replace(/\/$/, "");
 
 let sessionUser = null;
@@ -21,22 +22,49 @@ function expireSession(requestGeneration) {
   if (requestGeneration !== generation) return;
   rememberSession({});
   window.dispatchEvent(new Event("freelancechain:session-expired"));
+  announceSessionChange();
 }
 
 export function currentUser() { return sessionUser; }
+
+async function readResponse(response) {
+  try {
+    const data = await response.json();
+    if (!data || typeof data !== "object") throw new Error("Invalid API data");
+    return data;
+  } catch {
+    // Keep unauthorized responses in the normal session-expiry path, even if a proxy sends HTML.
+    if (response.status === 401) return {};
+    throw new Error([502, 503, 504].includes(response.status)
+      ? "The service is starting or temporarily unavailable. Please wait a moment and try again."
+      : "The service returned an unreadable response. Please try again.");
+  }
+}
+function checkSessionResponse(data, allowGuest = false) {
+  const signedIn = data.user && ["client", "freelancer", "admin"].includes(data.user.role) && typeof data.csrfToken === "string" && data.csrfToken.length > 0;
+  if (!signedIn && !(allowGuest && Object.hasOwn(data, "user") && data.user === null)) {
+    throw new Error("Your sign-in status could not be confirmed. Please try again.");
+  }
+}
+export function invalidateCachedSession() {
+  sessionUser = null; csrfToken = null; ready = false; restoring = null;
+  generation++; loginSequence++;
+}
 
 export async function restoreSession() {
   if (ready) return sessionUser;
   if (restoring) return restoring;
   const version = generation;
-  restoring = (async () => {
+  const request = (async () => {
     const response = await fetch(`${API_BASE}/auth/session`, { credentials: "include", cache: "no-store" });
-    const data = await response.json();
+    const data = await readResponse(response);
     if (!response.ok) throw new Error(data.message || "Unable to restore your session. Please try again.");
+    checkSessionResponse(data, true);
     if (generation === version) rememberSession(data);
     return sessionUser;
   })();
-  try { return await restoring; } finally { restoring = null; }
+  restoring = request;
+  try { return await request; } finally { if (restoring === request) restoring = null; }
 }
 
 export async function api(path, options = {}) {
@@ -56,12 +84,7 @@ export async function api(path, options = {}) {
       ...options.headers,
     },
   });
-  let data;
-  try {
-    data = await response.json();
-  } catch {
-    data = {};
-  }
+  const data = await readResponse(response);
   if (!response.ok) {
     if (response.status === 401 && sessionUser && generation === requestGeneration) {
       expireSession(requestGeneration);
@@ -70,8 +93,11 @@ export async function api(path, options = {}) {
     if (response.status === 403 && data.code === "CSRF_INVALID" && generation === requestGeneration) { csrfToken = null; ready = false; }
     throw new Error(data.message || `Request failed (${response.status})`);
   }
-  if (path === "/auth/login" && loginAttempt === loginSequence) rememberSession(data);
-  if (data.signedOut && generation === requestGeneration) rememberSession({});
+  if (path === "/auth/login") {
+    checkSessionResponse(data);
+    if (loginAttempt === loginSequence) { rememberSession(data); announceSessionChange(); }
+  }
+  if (data.signedOut && generation === requestGeneration) { rememberSession({}); announceSessionChange(); }
   return data;
 }
 
@@ -183,4 +209,5 @@ export function subscribeUpdates(onEvent) {
 export async function signOut({ localOnly = false } = {}) {
   if (!localOnly) await api("/auth/logout", { method: "POST" });
   rememberSession({});
+  if (localOnly) announceSessionChange();
 }

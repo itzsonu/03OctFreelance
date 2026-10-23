@@ -52,3 +52,51 @@ test("a late 401 from a previous session cannot erase a newer login", async () =
   await oldRequest;
   expect(client.currentUser()).toEqual(newUser);
 });
+
+test("an HTML success page cannot turn a session check into a guest login", async () => {
+  global.fetch.mockResolvedValueOnce({ ok: true, status: 200, json: async () => { throw new SyntaxError("HTML response"); } });
+  await expect(client.restoreSession()).rejects.toThrow("unreadable response");
+  global.fetch.mockResolvedValueOnce(response({ user, csrfToken: "restored" }));
+  await client.restoreSession();
+  expect(client.currentUser()).toEqual(user);
+});
+
+test("temporary proxy errors preserve sign-in and do not replay a write", async () => {
+  global.fetch.mockResolvedValueOnce(response({ user, csrfToken: "csrf-one" }));
+  await client.restoreSession();
+  global.fetch.mockResolvedValueOnce({ ok: false, status: 503, json: async () => { throw new SyntaxError("HTML response"); } });
+  await expect(client.api("/project-drafts", { method: "POST", body: "{}" })).rejects.toThrow("temporarily unavailable");
+  expect(client.currentUser()).toEqual(user);
+  expect(global.fetch).toHaveBeenCalledTimes(2);
+});
+
+test("malformed session JSON cannot sign out an existing account or confirm a new login", async () => {
+  global.fetch.mockResolvedValueOnce(response({}));
+  await expect(client.restoreSession()).rejects.toThrow("could not be confirmed");
+  global.fetch.mockResolvedValueOnce(response({ user, csrfToken: "csrf-one" }));
+  await client.restoreSession();
+  global.fetch.mockResolvedValueOnce(response({}));
+  await expect(client.api("/auth/login", { method: "POST", body: "{}" })).rejects.toThrow("could not be confirmed");
+  expect(client.currentUser()).toEqual(user);
+});
+
+test("an HTML unauthorized response still expires the current session", async () => {
+  global.fetch.mockResolvedValueOnce(response({ user, csrfToken: "csrf-one" }));
+  await client.restoreSession();
+  global.fetch.mockResolvedValueOnce({ ok: false, status: 401, json: async () => { throw new SyntaxError("HTML response"); } });
+  await expect(client.api("/projects/mine")).rejects.toThrow("Session expired");
+  expect(client.currentUser()).toBeNull();
+});
+
+test("a stale session restore cannot overwrite a switch from another tab", async () => {
+  let finishOld;
+  global.fetch.mockImplementationOnce(() => new Promise(resolve => { finishOld = resolve; }));
+  const old = client.restoreSession();
+  client.invalidateCachedSession();
+  const switched = { id: "freelancer-2", role: "freelancer" };
+  global.fetch.mockResolvedValueOnce(response({ user: switched, csrfToken: "new" }));
+  await client.restoreSession();
+  finishOld(response({ user, csrfToken: "old" }));
+  await old;
+  expect(client.currentUser()).toEqual(switched);
+});

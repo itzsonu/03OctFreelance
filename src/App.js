@@ -1,3 +1,4 @@
+import SessionBoundary from "./components/SessionBoundary";
 import Support from "./pages/Support";
 import ServicePolicies from "./pages/ServicePolicies";
 import AdminSupport from "./pages/AdminSupport";
@@ -50,7 +51,7 @@ import "./TaskBoard.css";
 function App() {
   return (
     <Router>
-      <Routes>
+      <SessionBoundary><Routes>
         <Route path="/terms" element={<ServicePolicies />} />
         <Route path="/privacy" element={<ServicePolicies privacy />} />
         <Route path="/support" element={<Support />} />
@@ -101,7 +102,7 @@ function App() {
           }
         />
         <Route path="*" element={<HomePage />} />
-      </Routes>
+      </Routes></SessionBoundary>
     </Router>
   );
 }

@@ -1,6 +1,6 @@
-# Vercel frontend / Render backend preparation
+# Vercel frontend / Render backend demo
 
-This batch prepares source and configuration. No Vercel/Render project or account has been created or modified. Semfolio remains a separate app. Do not connect this repository/blueprint to its service or reuse its database name, session secret or environment group.
+The separate FreelanceChain demo was deployed on 23 October 2026. Frontend: https://freelancechain-demo.vercel.app. Backend: https://freelancechain-api-zje1.onrender.com. It uses a dedicated FreelanceChain Render Hobby workspace, a Free Node service and a dedicated Atlas project/database. Semfolio remains a separate app. Do not connect this repository/blueprint to its service or reuse its database name, session secret or environment group.
 
 ## Isolation and accounts
 
@@ -45,14 +45,14 @@ Use the actual stopped app URL. The tool refuses a responding app. It copies byt
 
 Offline backup/restore now includes privatefiles and its shared reservation ledger in the existing canonical BSON exports, verifies referenced Mongo bytes, and supports a missing local upload directory when every recorded attachment is in MongoDB. Old local-file snapshots remain supported. Actual production recovery rehearsal is still pending.
 
-## Hosting configuration ready for the next step
+## Current hosting configuration and setup reference
 
 - Vercel: import the repository root; vercel.mjs supplies build/output, API forwarding, SPA routes and security/cache headers.
 - Render: create a NEW service using deploy/render-free.yaml (or equivalent dashboard settings), with backend as root directory and /api/health/ready as health check. Auto-deploy is off in the template. Supply private values from deploy/cloud.env.example.
 - MongoDB: use a dedicated named application database and credentials restricted to it. Keep connection strings out of Git and browser variables.
 - Keep EVENT_EMAILS_ENABLED=false. Email provider setup remains last.
 
-No cloud provider credentials are needed for the current code preparation. Actual publishing still requires account connection and private environment values. Live provider checks must verify cookie forwarding/logout, direct-origin rejection, file upload/download after a redeploy, stream reconnects and readiness. Local proxy checks cannot prove a provider's production routing.
+The provider accounts are connected and the private Production environment values are configured. Vercel forwards to the actual backend origin; Render APP_ORIGIN is the production frontend origin, PRIVATE_UPLOAD_BACKEND=mongo and EVENT_EMAILS_ENABLED=false. Atlas allows the two approved Render Singapore outbound ranges; a user-selected temporary setup IP has an expiry. No global internet access-list entry was added. Live signed-in logout, file upload/download after redeploy and stream reconnects still require verification.
 
 The single Render process runs existing in-app reminder/email workers. Sleeping services cannot deliver reminders until they resume; due reminders catch up. Live events are process-local, so horizontal scaling requires shared event transport.
 
@@ -60,4 +60,10 @@ References: [Render free instances](https://render.com/docs/free), [Render works
 
 ## Verification completed locally
 
-The cloud integration suite exercises a same-origin forwarding proxy, production cookie flags, CSRF, origin authentication, participant/admin downloads, rejected file content, persisted sessions/bytes after backend/database reconnect, concurrent shared quotas, protected orphan cleanup, safe migration resume, and canonical BSON backup/restore without local file storage. Existing session/security, local storage/support and recovery suites also pass. The health test now respects TEST_MONGO_BASE instead of requiring the real database service. The Vercel routing SDK configuration check, focused frontend storage/session checks and production React build pass. These are isolated local checks; actual Vercel/Render cookie forwarding, upload transport limits and post-redeploy downloads still require live-provider verification.
+The cloud integration suite exercises a same-origin forwarding proxy, production cookie flags, CSRF, origin authentication, participant/admin downloads, rejected file content, persisted sessions/bytes after backend/database reconnect, concurrent shared quotas, protected orphan cleanup, safe migration resume, and canonical BSON backup/restore without local file storage. Existing session/security, local storage/support and recovery suites also pass. The health test now respects TEST_MONGO_BASE instead of requiring the real database service. The Vercel routing SDK configuration check, focused frontend storage/session checks and production React build pass. These isolated local checks do not establish full hosted workflow coverage. Live checks additionally confirmed readiness 200, same-origin session response 200 with Secure/HttpOnly cookie attributes, no-store API responses, protected task-board API 401 without a session, direct backend API 403 without the proxy secret, and working homepage/login SPA routes. Vercel and Render deployed the routing fix successfully. Actual authenticated uploads, post-redeploy downloads and live stream reconnects remain unverified.
+
+## Browser sessions
+
+A browser profile shares its host-only session cookie across tabs. Signing in as a different account changes that cookie for every tab. Successful login/logout and session expiry publish only a change signal to other tabs; they clear the old in-memory account and page state before protected routes restore the current server session. Same-role account switches also remount private pages. BroadcastChannel is preferred, with a storage-event marker fallback; no credentials or account details are placed in those signals. If both mechanisms are blocked, refresh existing tabs after switching accounts. Use separate browser profiles/private windows for simultaneous client and freelancer demos.
+
+Temporary HTML/proxy failures are presented as retryable service errors, rather than empty project/session data. Writes are never automatically replayed. Invalid session payloads cannot silently confirm a login or replace the remembered account.

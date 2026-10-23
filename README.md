@@ -2,6 +2,14 @@
 
 A trust-aware freelance marketplace with AI-assisted matching and milestone-based project management. Built with React, Express and MongoDB.
 
+## Live demo
+
+[Open FreelanceChain](https://freelancechain-demo.vercel.app) — React on Vercel, Express on Render, and a dedicated MongoDB Atlas database. The first request after inactivity can take about a minute on Render Free.
+
+Create a fresh client or freelancer account on the demo; local users and files have not been migrated. One browser profile shares one signed-in account across its tabs. Use a separate browser profile or private window to keep client and freelancer accounts open together.
+
+The public pages, API readiness, cookie forwarding, protected-route rejection and direct-origin protection have been checked on the hosted providers. The complete signed-in hiring, delivery, upload and task-board workflow still needs live verification. Email delivery remains disabled until its final setup.
+
 ## Current features
 
 - Client and freelancer accounts, public project discovery, profiles and portfolios.
@@ -81,12 +89,12 @@ research/ contains evaluation tooling documentation, empty consent/label templat
 
 Milestone amounts are planning figures. Payments, escrow, refunds and blockchain transactions are not implemented.
 
-This repository contains the application source, not a completed public deployment. Production hosting, HTTPS, durable private storage, backups, operational monitoring, malware scanning and a production security review still require setup. Cookie sessions and shared application request limits are implemented; hosting configuration and infrastructure traffic protection remain deployment work.
+A separate public demo is deployed. Durable MongoDB attachment storage and exact-origin HTTPS session routing are configured. Production recovery rehearsal, ongoing monitoring, malware scanning, email delivery and a production security review remain pending; this demo is not a completed production operations setup.
 
 .env files, private uploads, installed dependencies, generated builds, logs and private research data/results are excluded from Git. Historical PHASE_* and QA reports describe earlier snapshots; the current source and tests are authoritative.
 
 Upload quotas and preview-confirmed orphan cleanup are implemented, alongside public Terms/Privacy pages, private support requests/admin replies, and password-confirmed account deletion review requests. Actual erasure remains a separate administrator data-handling operation. See [STORAGE_SUPPORT.md](STORAGE_SUPPORT.md) for limits, safety rules and launch policy review requirements.
 
-Hosting preparation, readiness/liveness probes, graceful shutdown and offline database/private-file recovery tools are documented in [DEPLOYMENT.md](DEPLOYMENT.md). A public deployment and production recovery rehearsal remain pending.
+Hosting preparation, readiness/liveness probes, graceful shutdown and offline database/private-file recovery tools are documented in [DEPLOYMENT.md](DEPLOYMENT.md). The public demo is live; a production recovery rehearsal remains pending.
 
-A separate Vercel/Render demo configuration is prepared in [CLOUD_HOSTING.md](CLOUD_HOSTING.md): same-origin cookie/CSRF proxying, durable private MongoDB attachments with shared quotas, and an offline copy-and-verify tool that preserves existing local files. This is source preparation; no public cloud deployment has been completed.
+A separate Vercel/Render demo configuration is prepared in [CLOUD_HOSTING.md](CLOUD_HOSTING.md): same-origin cookie/CSRF proxying, durable private MongoDB attachments with shared quotas, and an offline copy-and-verify tool that preserves existing local files. The demo is deployed; see that guide for current settings and the remaining verification limits.
