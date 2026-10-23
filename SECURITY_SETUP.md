@@ -48,3 +48,5 @@ Upload attempts are limited after cookie/CSRF checks and before multipart parsin
 These changes do not configure hosting/HTTPS, validate real email delivery, or claim a full independent penetration test.
 
 Reference guidance: [OWASP sessions](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html), [OWASP CSRF](https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html), [Express reverse proxies](https://expressjs.com/en/guide/behind-proxies/).
+
+For the prepared Vercel/Render setup, the browser keeps /api on its own origin. A private FC_PROXY_SECRET authenticates the origin proxy before accepting its X-Real-IP for request limits; default forwarded-header behavior is unchanged without this mode. See [CLOUD_HOSTING.md](CLOUD_HOSTING.md). Do not configure a direct cross-site REACT_APP_API_URL for this cookie model.

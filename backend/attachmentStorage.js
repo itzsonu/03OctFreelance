@@ -1,10 +1,10 @@
 const crypto = require("node:crypto");
 const Attachment = require("./models/Attachment");
 const Usage = require("./models/StorageUsage");
-const { validateFile, storeFile, removeFile, MAX_FILE_SIZE, fileMetadata } = require("./fileStorage");
+const { validateFile, storeFile, removeFile, MAX_FILE_SIZE, fileMetadata, storageBackend } = require("./fileStorage");
 const fail = (status, message) => Object.assign(new Error(message), { status });
 function limits() {
-  const value = process.env.UPLOAD_USER_QUOTA_MB === undefined ? 500 : Number(process.env.UPLOAD_USER_QUOTA_MB);
+  const value = process.env.UPLOAD_USER_QUOTA_MB === undefined ? (storageBackend() === "mongo" ? 20 : 500) : Number(process.env.UPLOAD_USER_QUOTA_MB);
   if (!Number.isSafeInteger(value) || value < 1 || value > 10000) throw new Error("UPLOAD_USER_QUOTA_MB must be an integer from 1 to 10000");
   return { maxBytes: value * 1024 * 1024, maxFiles: 1000, maxFileBytes: MAX_FILE_SIZE, filesPerRequest: 3 };
 }
@@ -32,7 +32,7 @@ async function discardAttachments(items) {
   for (const item of items) {
     // Caller may have received an uncertain database-write result. Never remove referenced evidence.
     if (await require("./storageMaintenance").isReferenced(item._id)) continue;
-    await removeFile(item.storageKey);
+    await removeFile(item.storageKey, item.storageBackend || "local");
     await Attachment.deleteOne({ _id: item._id });
     await release(item.uploader, item.storageKey, item.size);
   }

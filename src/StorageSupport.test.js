@@ -46,8 +46,9 @@ test("password errors allow retry; deletion review shows status and can be cance
 });
 
 test("storage cleanup requires a preview and explicit acknowledgement", async () => {
-  api.mockImplementation(path => Promise.resolve(path === "/admin/storage" ? { maxBytes: 524288000, maxFiles: 1000, maxFileBytes: 10485760, filesPerRequest: 3, recordedBytes: 4096, recordedFiles: 1, history: [] } : path.endsWith("/preview") ? { token: "private-preview", candidates: 2, bytes: 500, batchLimit: 500, message: "Recorded evidence is preserved.", expiresAt: "2035-01-01T00:00:00Z" } : { message: "Cleanup finished.", removedFiles: 2, releasedReservations: 0, skipped: 0 }));
+  api.mockImplementation(path => Promise.resolve(path === "/admin/storage" ? { maxBytes: 524288000, maxFiles: 1000, maxFileBytes: 10485760, filesPerRequest: 3, recordedBytes: 4096, recordedFiles: 1, shared: { usedBytes: 1048576, maxBytes: 104857600, usedFiles: 1, maxFiles: 10000 }, history: [] } : path.endsWith("/preview") ? { token: "private-preview", candidates: 2, bytes: 500, batchLimit: 500, message: "Recorded evidence is preserved.", expiresAt: "2035-01-01T00:00:00Z" } : { message: "Cleanup finished.", removedFiles: 2, releasedReservations: 0, skipped: 0 }));
   wrap(<AdminStorage />);
+  expect(await screen.findByText(/Shared attachment allowance: 1 MB of 100 MB used/)).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Remove previewed abandoned uploads" })).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Preview abandoned uploads" }));
   const apply = await screen.findByRole("button", { name: "Remove previewed abandoned uploads" }); expect(apply).toBeDisabled();

@@ -36,8 +36,10 @@ async function offline({ offlineConfirmed, appUrl }) {
 async function backup({ uri, uploads, destination, offlineConfirmed, appUrl }) {
   const sourceDatabase = namedDatabase(uri);
   await offline({ offlineConfirmed, appUrl });
-  const root = await noLinks(uploads); const target = path.resolve(destination);
-  if (inside(root, target) || inside(path.resolve(__dirname, "../public"), target) || inside(path.resolve(__dirname, "../build"), target)) throw new Error("Backup must be outside uploads and web-served directories");
+  const uploadPath = path.resolve(uploads); let root = null;
+  try { root = await noLinks(uploadPath); } catch (error) { if (error.code !== "ENOENT") throw error; }
+  const target = path.resolve(destination);
+  if (inside(uploadPath, target) || inside(path.resolve(__dirname, "../public"), target) || inside(path.resolve(__dirname, "../build"), target)) throw new Error("Backup must be outside uploads and web-served directories");
   await fs.mkdir(target, { mode: 0o700 });
   await noLinks(target); await fs.mkdir(path.join(target, "uploads"), { mode: 0o700 });
   const client = new MongoClient(uri, { serverSelectionTimeoutMS: 5000 });
@@ -55,7 +57,7 @@ async function backup({ uri, uploads, destination, offlineConfirmed, appUrl }) {
       const indexes = await db.collection(collection.name).listIndexes().toArray();
       manifest.collections.push({ ...await descriptor(path.join(target, name), name), collection: collection.name, count, metadata: EJSON.stringify({ options: collection.options || {}, indexes }, null, 0, { relaxed: false }) });
     }
-    for (const file of await fs.readdir(root, { withFileTypes: true })) {
+    for (const file of root ? await fs.readdir(root, { withFileTypes: true }) : []) {
       if (file.isSymbolicLink() || file.isDirectory()) throw new Error("Linked or nested private upload content requires manual investigation");
       if (!UUID.test(file.name)) continue;
       await fs.copyFile(path.join(root, file.name), path.join(target, "uploads", file.name), streams.constants.COPYFILE_EXCL);
@@ -63,7 +65,13 @@ async function backup({ uri, uploads, destination, offlineConfirmed, appUrl }) {
       manifest.uploads.push(await descriptor(path.join(target, "uploads", file.name), file.name));
     }
     const keys = new Set(manifest.uploads.map(file => file.name));
-    for await (const attachment of db.collection("attachments").find({}, { projection: { storageKey: 1 } })) if (!keys.has(attachment.storageKey)) throw new Error("A recorded attachment is missing bytes. Recover it before declaring a complete snapshot.");
+    for await (const attachment of db.collection("attachments").find({}, { projection: { storageKey: 1, storageBackend: 1, size: 1 } })) {
+      if (attachment.storageBackend === "mongo") {
+        const file = await db.collection("privatefiles").findOne({ _id: attachment.storageKey });
+        const data = file?.data?.buffer;
+        if (!file || !data || data.length !== attachment.size || crypto.createHash("sha256").update(data).digest("hex") !== file.sha256) throw new Error("A recorded MongoDB attachment is missing or corrupt. Recover it before declaring a complete snapshot.");
+      } else if (!keys.has(attachment.storageKey)) throw new Error("A recorded attachment is missing bytes. Recover it before declaring a complete snapshot.");
+    }
     await fs.writeFile(path.join(target, "manifest.json"), JSON.stringify(manifest, null, 2), { flag: "wx", mode: 0o600 });
     return { collections: manifest.collections.length, files: manifest.uploads.length, destination: target };
   } finally { await client.close(); }

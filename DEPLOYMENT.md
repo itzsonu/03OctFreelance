@@ -76,3 +76,7 @@ Retain the previous image tag and a verified pre-release snapshot. If code rollb
 Focused local recovery checks verify BSON round-trip, indexes, file hashes, refused overwrites, running-app refusal, old-session/recovery invalidation, readiness failure and drain status using disposable test data. This is not an off-site backup or a production disaster recovery rehearsal. Hosting credentials, actual DNS/HTTPS, host/container startup, alert destinations, production policy review, capacity testing and email provider verification remain operator deployment work.
 
 References: [Node release policy](https://nodejs.org/en/about/previous-releases), [Compose dependency health checks](https://docs.docker.com/compose/how-tos/startup-order/), [Compose services](https://docs.docker.com/reference/compose-file/services/), [Caddy automatic HTTPS](https://caddyserver.com/docs/automatic-https), [MongoDB Extended JSON](https://www.mongodb.com/docs/manual/reference/mongodb-extended-json/).
+
+## Optional free cloud demo preparation
+
+[CLOUD_HOSTING.md](CLOUD_HOSTING.md) documents the prepared Vercel frontend / new Render service configuration, private MongoDB attachment mode, preserved local-file migration and remaining live-provider checks. The existing Docker/local disk setup remains supported. No Semfolio service or cloud account was changed by this source update.

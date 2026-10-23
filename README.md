@@ -88,3 +88,5 @@ This repository contains the application source, not a completed public deployme
 Upload quotas and preview-confirmed orphan cleanup are implemented, alongside public Terms/Privacy pages, private support requests/admin replies, and password-confirmed account deletion review requests. Actual erasure remains a separate administrator data-handling operation. See [STORAGE_SUPPORT.md](STORAGE_SUPPORT.md) for limits, safety rules and launch policy review requirements.
 
 Hosting preparation, readiness/liveness probes, graceful shutdown and offline database/private-file recovery tools are documented in [DEPLOYMENT.md](DEPLOYMENT.md). A public deployment and production recovery rehearsal remain pending.
+
+A separate Vercel/Render demo configuration is prepared in [CLOUD_HOSTING.md](CLOUD_HOSTING.md): same-origin cookie/CSRF proxying, durable private MongoDB attachments with shared quotas, and an offline copy-and-verify tool that preserves existing local files. This is source preparation; no public cloud deployment has been completed.

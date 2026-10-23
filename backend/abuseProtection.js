@@ -57,7 +57,7 @@ async function check(res, scope, key, max, duration) {
 async function limitIp(req, res, next) {
   if (!unsafe(req)) return next();
   try {
-    const ip = ipIdentity(req.ip);
+    const ip = ipIdentity(req.rateLimitIp || req.ip);
     if (!await check(res, "ip-requests", ip, 600, MINUTE)) return;
     const action = actionFor(req);
     if (action && !await check(res, `ip-${action[0]}`, ip, action[3], action[2])) return;

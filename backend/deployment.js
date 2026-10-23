@@ -1,5 +1,5 @@
 const fs = require("node:fs/promises");
-const { storageRoot } = require("./fileStorage");
+const { storageRoot, storageBackend } = require("./fileStorage");
 async function loadSecrets() {
   for (const name of ["MONGO_URI", "JWT_SECRET", "RESTORE_MONGO_URI"]) {
     if (!process.env[`${name}_FILE`]) continue;
@@ -8,6 +8,7 @@ async function loadSecrets() {
   }
 }
 async function checkPrivateStorage() {
+  if (storageBackend() === "mongo") return require("./mongoFileStorage").check();
   await fs.mkdir(storageRoot(), { recursive: true, mode: 0o700 });
   await require("./storageMaintenance").safeRoot();
   await fs.access(storageRoot(), require("node:fs").constants.W_OK | require("node:fs").constants.R_OK);
@@ -21,6 +22,12 @@ function config() {
     let origin; try { origin = new URL(process.env.APP_ORIGIN); } catch { throw new Error("Production APP_ORIGIN must be an exact HTTPS origin"); }
     if (origin.protocol !== "https:" || origin.origin !== process.env.APP_ORIGIN) throw new Error("Production APP_ORIGIN must be an exact HTTPS origin");
     if (process.env.RESET_DELIVERY === "console") throw new Error("Console password-reset delivery is for local demos only");
+  }
+  if (storageBackend() === "mongo") require("./mongoFileStorage").limits();
+  if (process.env.FC_PROXY_SECRET && (process.env.FC_PROXY_SECRET.length < 32 || process.env.FC_PROXY_SECRET.length > 256)) throw new Error("FC_PROXY_SECRET must contain 32–256 characters");
+  if (process.env.NODE_ENV === "production") {
+    require("./recovery").namedDatabase(process.env.MONGO_URI);
+    if (process.env.RENDER === "true" && (storageBackend() !== "mongo" || !process.env.FC_PROXY_SECRET)) throw new Error("Render requires mongo private uploads and FC_PROXY_SECRET for the same-origin frontend proxy");
   }
   require("./attachmentStorage").limits();
   return { port, host: process.env.HOST || "0.0.0.0" };

@@ -48,6 +48,11 @@ function storageRoot() {
   return root;
 }
 
+function storageBackend() {
+  const value = process.env.PRIVATE_UPLOAD_BACKEND || "local";
+  if (!["local", "mongo"].includes(value)) throw new Error("PRIVATE_UPLOAD_BACKEND must be local or mongo");
+  return value;
+}
 async function storeFile(file, id = crypto.randomUUID()) {
   if (!validateFile(file)) {
     const error = new Error("Unsupported or invalid file content");
@@ -55,31 +60,40 @@ async function storeFile(file, id = crypto.randomUUID()) {
     throw error;
   }
   if (!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/.test(id)) throw new Error("Invalid storage key");
+  if (storageBackend() === "mongo") {
+    await require("./mongoFileStorage").store(id, file.buffer);
+    return fileMetadata(file, id);
+  }
   await fs.mkdir(storageRoot(), { recursive: true, mode: 0o700 });
   await fs.writeFile(path.join(storageRoot(), id), file.buffer, { flag: "wx", mode: 0o600 });
   return fileMetadata(file, id);
 }
 
-function fileMetadata(file, id) {
+function fileMetadata(file, id, backend = storageBackend()) {
   const extension = path.extname(file.originalname).toLowerCase();
   return {
     storageKey: id,
+    storageBackend: backend,
     filename: path.basename(file.originalname).replace(/[\r\n\u0000-\u001f\u007f]/g, "_").slice(0, 180) || `attachment${extension}`,
     mimeType: TYPES[extension].mime,
     size: file.size,
   };
 }
 
-async function readFile(storageKey) {
+async function readFile(storageKey, backend = storageBackend()) {
   if (typeof storageKey !== "string" || !/^[0-9a-f-]{36}$/.test(storageKey)) return null;
+  if (backend === "mongo") return require("./mongoFileStorage").read(storageKey);
+  if (backend !== "local") throw new Error("Unknown private storage backend");
   try { return await fs.readFile(path.join(storageRoot(), storageKey)); }
   catch (error) { if (error.code === "ENOENT") return null; throw error; }
 }
 
-async function removeFile(storageKey) {
+async function removeFile(storageKey, backend = storageBackend()) {
   if (typeof storageKey !== "string" || !/^[0-9a-f-]{36}$/.test(storageKey)) return;
+  if (backend === "mongo") return require("./mongoFileStorage").remove(storageKey);
+  if (backend !== "local") throw new Error("Unknown private storage backend");
   try { await fs.unlink(path.join(storageRoot(), storageKey)); }
   catch (error) { if (error.code !== "ENOENT") throw error; }
 }
 
-module.exports = { MAX_FILE_SIZE, upload, parseFiles, validateFile, storeFile, readFile, removeFile, storageRoot, fileMetadata };
+module.exports = { MAX_FILE_SIZE, upload, parseFiles, validateFile, storeFile, readFile, removeFile, storageRoot, storageBackend, fileMetadata };

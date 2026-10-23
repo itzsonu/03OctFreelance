@@ -15,6 +15,7 @@ if (process.env.TRUST_PROXY) {
   app.set("trust proxy", process.env.TRUST_PROXY.split(",").map(value => value.trim()).filter(Boolean));
 }
 app.use(securityHeaders);
+app.use("/api", require("./cloudProxy").cloudProxy);
 app.use("/api", requestSecurity);
 app.use(express.json({ limit: "100kb" }));
 app.use("/api", limitIp);

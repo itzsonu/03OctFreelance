@@ -61,7 +61,7 @@ test("production config and readiness reject invalid origins, database loss and 
   const old = { ...process.env }; let server; const healthDatabase = "freelancechain_health_test_" + crypto.randomBytes(6).toString("hex");
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), "fc-health-test-"));
   try {
-    process.env.JWT_SECRET = crypto.randomBytes(32).toString("hex"); process.env.MONGO_URI = "mongodb://127.0.0.1:27017/" + healthDatabase;
+    process.env.JWT_SECRET = crypto.randomBytes(32).toString("hex"); process.env.MONGO_URI = (process.env.TEST_MONGO_BASE || "mongodb://127.0.0.1:27017") + "/" + healthDatabase;
     process.env.NODE_ENV = "production"; process.env.APP_ORIGIN = "http://localhost:5000";
     assert.throws(() => require("./deployment").config(), /HTTPS/);
     process.env.APP_ORIGIN = "https://example.test"; delete process.env.RESET_DELIVERY; require("./deployment").config();

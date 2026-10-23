@@ -5,6 +5,8 @@ const Attachment = require("./models/Attachment");
 const Usage = require("./models/StorageUsage");
 const Cleanup = require("./models/StorageCleanup");
 const { storageRoot } = require("./fileStorage");
+const PrivateFile = require("./models/PrivateFile");
+const Pool = require("./models/PrivateStoragePool");
 const GRACE_MS = 24 * 60 * 60 * 1000;
 const validKey = key => typeof key === "string" && /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/.test(key);
 const digest = value => crypto.createHash("sha256").update(value).digest("hex");
@@ -33,8 +35,12 @@ async function eligible(key, root, cutoff) {
   try { if (root) stat = await fs.lstat(path.join(root, key)); }
   catch (error) { if (error.code !== "ENOENT") throw error; }
   if (stat && (!stat.isFile() || stat.isSymbolicLink() || Math.max(stat.mtimeMs, stat.ctimeMs, stat.birthtimeMs) >= cutoff)) return null;
-  if (!stat && !entry) return null;
-  return { key, bytes: stat?.size || 0, usage, entry, hasFile: Boolean(stat) };
+  const blob = await PrivateFile.findById(key).select("size createdAt").lean();
+  const pool = await Pool.findOne({ _id: "private-attachments", "entries.key": key }, { entries: { $elemMatch: { key } } }).lean();
+  const sharedEntry = pool?.entries[0];
+  if ((blob && (!blob.createdAt || blob.createdAt.getTime() >= cutoff)) || (sharedEntry && (!sharedEntry.createdAt || sharedEntry.createdAt.getTime() >= cutoff))) return null;
+  if (!stat && !entry && !blob && !sharedEntry) return null;
+  return { key, bytes: (stat?.size || 0) + (blob?.size || 0), usage, entry, hasFile: Boolean(stat), blob, sharedEntry };
 }
 async function preview(actor, now = Date.now()) {
   const root = await safeRoot();
@@ -43,6 +49,8 @@ async function preview(actor, now = Date.now()) {
   if (root) for (const file of await fs.readdir(root, { withFileTypes: true })) if (file.isFile() && validKey(file.name)) keys.add(file.name);
   // Reservations left by a crash before writing bytes also need safe retirement.
   for await (const row of Usage.find({ "entries.createdAt": { $lt: new Date(cutoff) } }).select("entries").cursor()) for (const entry of row.entries) if (entry.createdAt < cutoff) keys.add(entry.key);
+  for await (const file of PrivateFile.find({ createdAt: { $lt: new Date(cutoff) } }).select("_id").cursor()) keys.add(file._id);
+  for await (const pool of Pool.find({ "entries.createdAt": { $lt: new Date(cutoff) } }).select("entries").cursor()) for (const entry of pool.entries) if (entry.createdAt < cutoff) keys.add(entry.key);
   const candidates = []; let bytes = 0;
   for (const key of keys) {
     const candidate = await eligible(key, root, cutoff);
@@ -73,6 +81,11 @@ async function apply(actor, token, now = Date.now()) {
         if (checkedRoot !== root) throw new Error("Storage directory changed during cleanup");
         try { await fs.unlink(path.join(root, key)); record.removedFiles++; }
         catch (error) { if (error.code !== "ENOENT") throw error; }
+      }
+      if (candidate.blob || candidate.sharedEntry) {
+        if (await Attachment.exists({ storageKey: key })) { record.skipped++; continue; }
+        await require("./mongoFileStorage").remove(key);
+        if (candidate.blob) record.removedFiles++;
       }
     }
     record.status = "complete";

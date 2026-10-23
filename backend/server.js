@@ -4,8 +4,9 @@ const deployment = require("./deployment");
 async function start() {
   await deployment.loadSecrets();
   const settings = deployment.config();
-  await deployment.checkPrivateStorage();
   await require("./db")();
+  if (require("./fileStorage").storageBackend() === "mongo") await require("./mongoFileStorage").init();
+  await deployment.checkPrivateStorage();
   await Promise.all([require("./models/Session").init(), require("./models/RateBucket").init(), require("./models/StorageUsage").init(), require("./models/SupportRequest").init()]);
   await Promise.all([require("./models/ProjectTask").init(), require("./models/Notification").init()]);
   const app = require("./app");

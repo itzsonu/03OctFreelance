@@ -1,0 +1,33 @@
+# Import this blueprint only into the selected FreelanceChain workspace.
+# It creates a NEW service. Do not attach it to Semfolio's existing blueprint.
+services:
+  - type: web
+    name: freelancechain-api
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/health/ready
+    autoDeployTrigger: "off"
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: NODE_ENV
+        value: production
+      - key: MONGO_URI
+        sync: false
+      - key: APP_ORIGIN
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: FC_PROXY_SECRET
+        sync: false
+      - key: PRIVATE_UPLOAD_BACKEND
+        value: mongo
+      - key: UPLOAD_USER_QUOTA_MB
+        value: "20"
+      - key: UPLOAD_SHARED_QUOTA_MB
+        value: "100"
+      - key: EVENT_EMAILS_ENABLED
+        value: "false"

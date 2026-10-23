@@ -48,9 +48,9 @@ router.get("/cases/:caseId/files/:fileId", async (req, res) => {
   if (!dispute) return res.status(404).json({ message: "File not found" });
   const attachedToCase = (dispute.history || []).some(item => (item.attachments || []).some(id => String(id) === req.params.fileId));
   if (!attachedToCase) return res.status(404).json({ message: "File not found" });
-  const attachment = await Attachment.findOne({ _id: req.params.fileId, project: dispute.project }).select("+storageKey filename mimeType size").lean();
+  const attachment = await Attachment.findOne({ _id: req.params.fileId, project: dispute.project }).select("+storageKey +storageBackend filename mimeType size").lean();
   if (!attachment) return res.status(404).json({ message: "File not found" });
-  const bytes = await readFile(attachment.storageKey);
+  const bytes = await readFile(attachment.storageKey, attachment.storageBackend || "local");
   if (!bytes) return res.status(404).json({ message: "File not found" });
   const safeName = attachment.filename.replace(/[\r\n"\\]/g, "_");
   res.set({

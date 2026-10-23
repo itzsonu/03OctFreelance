@@ -55,9 +55,9 @@ router.get("/projects/:projectId/files/:fileId", async (req, res) => {
     const project = await Project.findById(req.params.projectId).select("client freelancer").lean();
     if (!project) return res.status(404).json({ message: "File not found" });
     if (!await participant(project, req.user)) return res.status(403).json({ message: "Access denied" });
-    const attachment = await Attachment.findOne({ _id: req.params.fileId, project: project._id }).select("+storageKey filename mimeType").lean();
+    const attachment = await Attachment.findOne({ _id: req.params.fileId, project: project._id }).select("+storageKey +storageBackend filename mimeType").lean();
     if (!attachment) return res.status(404).json({ message: "File not found" });
-    const bytes = await readFile(attachment.storageKey);
+    const bytes = await readFile(attachment.storageKey, attachment.storageBackend || "local");
     if (!bytes) return res.status(404).json({ message: "File not found" });
     const safeName = attachment.filename.replace(/[\r\n"\\]/g, "_");
     res.set({
