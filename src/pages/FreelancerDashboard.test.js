@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import FreelancerDashboard from "./FreelancerDashboard";
 import { api, subscribeUpdates } from "../api";
@@ -121,4 +121,41 @@ test("discovery filters are restored from the URL and sent to the public API", a
   expect(api).toHaveBeenCalledWith("/projects/public?category=Design+%26+Creative&minBudget=10000&page=2");
   expect(screen.getByLabelText("Category")).toHaveValue("Design & Creative");
   expect(screen.getByLabelText("Minimum budget")).toHaveValue(10000);
+});
+
+function mockSuggestedBrief(loadBrief) {
+  const project = { _id: "suggestion-1", title: "React booking dashboard", category: "Web Development", description: "Build accessible booking screens.", budget: 9000, deadline: "2035-12-31", requiredSkills: ["React"], reason: { matchedSkills: ["React"] }, milestones: [] };
+  api.mockReset();
+  api.mockImplementation(path => {
+    if (path === "/projects/public/suggestion-1") return loadBrief(project);
+    if (path.startsWith("/projects/recommended")) return Promise.resolve({ projects: [project], mode: "profile", page: 1, pages: 1, setup: { ready: true } });
+    if (path === "/projects/public") return Promise.resolve(publicJobs([project]));
+    return Promise.resolve([]);
+  });
+  render(<MemoryRouter><FreelancerDashboard /></MemoryRouter>);
+  return screen.findByRole("region", { name: "Projects for your profile" });
+}
+
+test.each(["cancel", "switch tab"])("a late suggested brief cannot open after %s", async action => {
+  let resolve;
+  const region = await mockSuggestedBrief(project => new Promise(done => { resolve = () => done({ ...project, id: project._id }); }));
+  const open = await within(region).findByRole("button", { name: "Read suggested brief →" });
+  fireEvent.click(open); fireEvent.click(open);
+  expect(within(region).getByRole("button", { name: "Opening brief…" })).toBeDisabled();
+  expect(api.mock.calls.filter(call => call[0] === "/projects/public/suggestion-1")).toHaveLength(1);
+  if (action === "cancel") fireEvent.click(within(region).getByRole("button", { name: "Cancel loading" }));
+  else fireEvent.click(screen.getByRole("tab", { name: /Saved/ }));
+  await act(async () => resolve());
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  if (action === "cancel") expect(within(region).getByRole("button", { name: "Read suggested brief →" })).toBeEnabled();
+});
+
+test("a suggested brief failure offers an inline retry that opens the full brief", async () => {
+  let attempts = 0;
+  const region = await mockSuggestedBrief(project => ++attempts === 1 ? Promise.reject(new Error("Brief connection interrupted")) : Promise.resolve({ ...project, id: project._id }));
+  fireEvent.click(await within(region).findByRole("button", { name: "Read suggested brief →" }));
+  expect(await within(region).findByRole("alert")).toHaveTextContent("Brief connection interrupted");
+  fireEvent.click(within(region).getByRole("button", { name: "Try this brief again →" }));
+  expect(await screen.findByRole("dialog", { name: "React booking dashboard" })).toBeInTheDocument();
+  expect(screen.getByLabelText("Proposed price")).toHaveValue(9000);
 });

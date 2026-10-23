@@ -68,7 +68,7 @@ The integration suites use uniquely named temporary databases and clean up only 
 
 ## Research and deployment status
 
-Cold-start phases 1 and 2 add guided freelancer setup, preferred work fields, explainable profile-based project suggestions and a client filter for talent without approved platform work. Newcomers need no reviews to use recommendations; portfolio samples remain separate from verified history and visibility stays opt-in. See [COLD_START.md](COLD_START.md) for implemented behavior and the remaining pilot/research evaluation.
+Cold-start support adds guided freelancer setup, preferred work fields, explainable profile-based project suggestions and a client filter for talent without approved platform work. Newcomers need no reviews to use recommendations; portfolio samples remain separate from verified history and visibility stays opt-in. Phase 3 adds focused profile navigation, safe pending saves, cancellable/retryable brief loading, phone layout improvements and explicit private feedback links. See [COLD_START.md](COLD_START.md) for behavior and [the pilot plan](research/COLD_START_PILOT.md) for empty collection templates. Real participant feedback and independent relevance evaluation remain pending.
 
 Clients can save incomplete project briefs to their account, resume or delete them from **Saved drafts**, and publish after full validation. Drafts are private and do not appear in the marketplace. Saving is explicit; use **Save draft and close** before leaving. A stale tab cannot overwrite a newer saved draft. Publication retries recover the same project.
 

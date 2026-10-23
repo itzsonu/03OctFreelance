@@ -72,3 +72,11 @@ test("privacy information accurately explains the manual deletion review", () =>
   expect(screen.getByText(/Submitting or closing a review does not automatically erase your account/)).toBeInTheDocument();
   expect(screen.getAllByRole("link", { name: "Support" }).length).toBeGreaterThan(0);
 });
+
+test.each([["project-suggestions", "Project suggestions feedback"], ["profile-setup", "Profile setup feedback"], ["untrusted-topic", ""]])("feedback topic %s fills only a subject and sends nothing automatically", async (topic, subject) => {
+  render(<MemoryRouter initialEntries={[`/support?topic=${topic}`]}><Support /></MemoryRouter>);
+  await waitFor(() => expect(screen.getByRole("button", { name: "Submit request" })).toBeEnabled());
+  expect(screen.getByLabelText("Subject")).toHaveValue(subject);
+  expect(screen.getByLabelText("How can we help?")).toHaveValue("");
+  expect(api).not.toHaveBeenCalled();
+});

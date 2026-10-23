@@ -1,16 +1,20 @@
 import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import ServicePage from "../components/ServicePage";
 import RequestRecord from "../components/RequestRecord";
 import Pagination from "../components/Pagination";
 import usePagedList from "../usePagedList";
 import { api, restoreSession } from "../api";
+const feedbackTopics = { "project-suggestions": "Project suggestions feedback", "profile-setup": "Profile setup feedback" };
 export default function Support() {
+  const [search] = useSearchParams();
+  const feedbackTopic = Object.hasOwn(feedbackTopics, search.get("topic")) ? feedbackTopics[search.get("topic")] : "";
   const [identity, setIdentity] = useState(undefined);
-  const [form, setForm] = useState({ email: "", subject: "", message: "" });
+  const [form, setForm] = useState(() => ({ email: "", subject: feedbackTopic, message: "" }));
   const [error, setError] = useState(""); const [notice, setNotice] = useState(""); const [busy, setBusy] = useState(false);
   const [code, setCode] = useState(""); const [savedCode, setSavedCode] = useState(""); const [tracked, setTracked] = useState(null);
   const requests = usePagedList("/account/support", 10, Boolean(identity));
+  useEffect(() => { if (feedbackTopic) setForm(value => !value.subject && !value.message ? { ...value, subject: feedbackTopic } : value); }, [feedbackTopic]);
   useEffect(() => { let live = true; restoreSession().then(user => { if (live) setIdentity(user || null); }).catch(err => { if (live) { setIdentity(null); setError(err.message); } }); return () => { live = false; }; }, []);
   async function send(event) {
     event.preventDefault(); setBusy(true); setError(""); setNotice("");
@@ -27,6 +31,7 @@ export default function Support() {
     catch (err) { setError(err.message); } finally { setBusy(false); }
   }
   return <ServicePage title="How can we help?" intro="Ask about your account, report a problem, or raise a privacy concern. Replies appear here; this form does not send email.">
+    {feedbackTopic && <div className="info-box"><strong>{feedbackTopic}</strong><p>Tell us what you were trying to do, what happened, and what would help. For suggestions, explain which skills or field matched or did not match. Feedback is sent only when you submit this form and is private to you and the administrators.</p><Link to="/freelancer-dashboard">← Back to projects</Link></div>}
     {error && <p className="message error" role="alert">{error}</p>}{notice && <p className="message success" role="status">{notice}</p>}
     <div className="service-grid"><section className="panel account-settings-card"><h2>Send a request</h2><p>For a delivery disagreement, open a case inside the project. Do not include passwords, login codes or payment details.</p><p>Account deletion review is available in <Link to="/account">Account settings</Link>. If you cannot sign in, explain the issue below; the administrator will need to verify ownership.</p>
       <form className="stack-form" onSubmit={send}>{!identity && <label>Contact email<input type="email" autoComplete="email" required maxLength={254} value={form.email} onChange={event => setForm({ ...form, email: event.target.value })} /></label>}

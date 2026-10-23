@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import FreelancerProfile from "./FreelancerProfile";
 import { api } from "../api";
@@ -56,4 +56,32 @@ test("a failed profile load cannot save an empty replacement", async () => {
   expect(screen.queryByRole("button", { name: "Save profile ↗" })).not.toBeInTheDocument();
   expect(await screen.findByLabelText("Professional headline")).toHaveValue("Saved headline");
   expect(api.mock.calls.every(call => !call[1]?.method)).toBe(true);
+});
+
+test("availability navigation waits for the saved profile and focuses its control", async () => {
+  api.mockReset();
+  let resolve;
+  api.mockReturnValue(new Promise(done => { resolve = done; }));
+  render(<MemoryRouter initialEntries={["/profile#profile-availability"]}><FreelancerProfile /></MemoryRouter>);
+  await act(async () => resolve({ profile: { availability: "unavailable" } }));
+  expect(screen.getByLabelText("Availability")).toHaveFocus();
+  expect(screen.getByLabelText("Availability")).toHaveValue("unavailable");
+});
+
+test("a pending save locks edits and a failed save keeps the draft for retry", async () => {
+  api.mockReset();
+  let reject;
+  api.mockResolvedValueOnce({ profile: { headline: "Saved headline" } }).mockReturnValueOnce(new Promise((resolve, fail) => { reject = fail; }));
+  render(<MemoryRouter><FreelancerProfile /></MemoryRouter>);
+  const headline = await screen.findByLabelText("Professional headline");
+  fireEvent.change(headline, { target: { value: "My draft headline" } });
+  const save = screen.getByRole("button", { name: "Save profile ↗" });
+  fireEvent.click(save); fireEvent.submit(save.closest("form"));
+  expect(headline).toBeDisabled();
+  expect(screen.getByLabelText("Availability")).toBeDisabled();
+  expect(api.mock.calls.filter(call => call[1]?.method === "PUT")).toHaveLength(1);
+  await act(async () => reject(new Error("Connection interrupted; try again.")));
+  expect(headline).toBeEnabled(); expect(headline).toHaveValue("My draft headline");
+  expect(screen.getByRole("alert").parentElement).toHaveFocus();
+  expect(screen.getByRole("button", { name: "Save profile ↗" })).toBeEnabled();
 });

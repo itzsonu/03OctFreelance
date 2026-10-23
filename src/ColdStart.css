@@ -13,6 +13,14 @@
 .preference-options label{display:flex!important;align-items:center;gap:8px;font-size:14px!important;line-height:1.4}
 .preference-options input{width:17px!important;height:17px;margin:0!important;flex:none}
 #profile-intro,#profile-skills,#profile-preferences,#profile-samples{scroll-margin-top:24px}
+.profile-fields{min-width:0;border:0;margin:0;padding:0}
+.profile-fields select{width:100%;min-height:44px;border:1px solid var(--line);border-radius:10px;background:#fff;padding:10px 13px;color:var(--ink);font-size:16px}
+.profile-feedback{scroll-margin-top:18px;outline-offset:4px}
+#profile-availability,#open-project-discovery{scroll-margin-top:24px}
+.recommendation-actions{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.recommendation-actions .text-button{text-decoration:underline;text-underline-offset:3px}
+.brief-load-status{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:14px;line-height:1.5;color:var(--muted)}
+.brief-load-error{font-size:14px;line-height:1.6;color:var(--accent-ink);overflow-wrap:anywhere}
 .profile-form-group{display:grid;gap:12px}
 .recommended-projects{margin-bottom:26px;overflow:hidden}
 .recommended-projects .panel-heading{gap:16px;flex-wrap:wrap;align-items:center}
@@ -27,8 +35,10 @@
 .recommendation-state{padding:20px 24px;color:var(--muted);font-size:15px;line-height:1.6}
 .recommendation-state h3{font-size:17px;color:var(--ink)}
 .setup-nudge{font-size:14px;line-height:1.6;background:var(--paper);padding:12px 24px;margin:0;color:var(--text-soft)}
-.setup-nudge a{text-decoration:underline;text-underline-offset:3px}
+.setup-nudge a{display:inline-block;padding:6px 0;text-decoration:underline;text-underline-offset:3px}
 .recommendation-pagination{display:flex;justify-content:flex-end;align-items:center;gap:12px;flex-wrap:wrap;padding:0 24px 20px;font-size:14px}
 .new-talent-note{margin:0 24px 16px;padding:12px;background:var(--paper);border-radius:8px;font-size:14px;line-height:1.6;color:var(--text-soft)}
 .new-talent-label{display:inline-block;color:var(--accent-ink);font-size:13px;font-weight:500;margin-top:6px}
+@media(max-width:640px){.brief-facts{flex-wrap:wrap;gap:16px 24px}.brief-facts>span{display:grid;gap:4px}.brief-facts strong{margin-left:0;white-space:nowrap}}
 @media(max-width:640px){.profile-setup{padding:18px}.profile-setup ol,.preference-options,.recommended-grid{grid-template-columns:1fr}.recommended-grid{padding:16px}.recommendation-pagination{justify-content:space-between;padding:0 16px 16px}.profile-setup li a{min-width:140px}.new-talent-note{margin:0 16px 16px}}
+@media(max-width:640px){.recommended-card .button{align-self:stretch;white-space:normal;text-align:center}.recommendation-actions{width:100%;justify-content:space-between}.recommendation-pagination .button{min-height:44px;flex:1}.profile-setup li{min-width:0}.profile-setup li a{overflow-wrap:anywhere}.portfolio-editor-heading{flex-wrap:wrap}.portfolio-editor-heading .button{min-height:44px}.profile-extension-panel{padding:18px}.profile-fields input,.profile-fields textarea,.profile-fields select{font-size:16px}}

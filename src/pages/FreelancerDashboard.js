@@ -46,6 +46,9 @@ export default function FreelancerDashboard() {
   const [messageApplication, setMessageApplication] = useState(null);
   const [tab, setTab] = useState(() => searchParams.get("view") === "applications" ? "applications" : "discover");
   const [selected, setSelected] = useState(null);
+  const [openingProjectId, setOpeningProjectId] = useState(null);
+  const [briefOpenError, setBriefOpenError] = useState(null);
+  const briefRequest = useRef({ version: 0, opening: false });
   const [proposal, setProposal] = useState("");
   const [proposedPrice, setProposedPrice] = useState("");
   const [deliveryEstimateDays, setDeliveryEstimateDays] = useState("14");
@@ -59,6 +62,11 @@ export default function FreelancerDashboard() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const proposalDialogRef = useDialogAccessibility(() => setSelected(null), Boolean(selected));
+  useEffect(() => () => { briefRequest.current.version += 1; briefRequest.current.opening = false; }, []);
+  useEffect(() => {
+    briefRequest.current.version += 1; briefRequest.current.opening = false;
+    setOpeningProjectId(null); setBriefOpenError(null);
+  }, [tab]);
 
   const load = useCallback(async () => {
     const version = {}; loadGeneration.current = version;
@@ -136,13 +144,27 @@ export default function FreelancerDashboard() {
     setSearchParams(next);
   }
 
-  async function openBrief(project) {
+  function cancelBriefLoad() {
+    briefRequest.current.version += 1; briefRequest.current.opening = false;
+    setOpeningProjectId(null);
+  }
+
+  async function openBrief(project, source = "discovery") {
+    if (briefRequest.current.opening) return;
+    const version = ++briefRequest.current.version;
+    briefRequest.current.opening = true;
+    setOpeningProjectId(project._id); setBriefOpenError(null);
     setError("");
     try {
       const brief = await api(`/projects/public/${project._id}`);
+      if (version !== briefRequest.current.version) return;
       setSelected(brief);
       prepareProposal(brief);
-    } catch (err) { setError(err.message); }
+    } catch (err) {
+      if (version === briefRequest.current.version) setBriefOpenError({ projectId: project._id, source, message: err.message });
+    } finally {
+      if (version === briefRequest.current.version) { briefRequest.current.opening = false; setOpeningProjectId(null); }
+    }
   }
 
   async function apply(event) {
@@ -209,9 +231,9 @@ export default function FreelancerDashboard() {
   return <Shell role="freelancer" eyebrow="FREELANCER WORKSPACE" title="Find your next great project." subtitle="Explore open work, send a thoughtful proposal and track your progress." action={<Link className="button button-outline" to="/profile">Edit my profile ↗</Link>}>
     {notice && <div className="message success" role="status">{notice}<button onClick={() => setNotice("")} aria-label="Dismiss message">×</button></div>}
     {error && <div className="message error" role="alert">{error}<button onClick={() => setError("")} aria-label="Dismiss error">×</button></div>}
-    {tab === "discover" && <RecommendedProjects refresh={discoveryRefresh} onOpen={openBrief} />}
+    {tab === "discover" && <RecommendedProjects refresh={discoveryRefresh} onOpen={project => openBrief(project, "recommended")} openingProjectId={openingProjectId} openError={briefOpenError?.source === "recommended" ? briefOpenError : null} onCancelOpen={cancelBriefLoad} />}
     <div className="metrics-grid"><div className="metric-card"><span>Open projects</span><strong>{projectInfo.summary?.open ?? open.length}</strong><small>Ready for proposals</small><span className="metric-icon">↗</span></div><div className="metric-card"><span>Active work</span><strong>{projectInfo.summary?.active ?? assigned.filter(project => project.status === "In Progress").length}</strong><small>Projects assigned to you</small><span className="metric-icon">▦</span></div><div className="metric-card"><span>Pending proposals</span><strong>{pending}</strong><small>Waiting for a response</small><span className="metric-icon">✦</span></div></div>
-    <section className="panel browse-panel"><div className="panel-heading"><div><p className="eyebrow">YOUR WORKSPACE</p><h2>Projects & proposals</h2></div>{liveStatus === "live" && <span className="live-pill">Live updates</span>}{liveStatus === "reconnecting" && <span className="live-pill reconnecting">Reconnecting…</span>}</div>
+    <section className="panel browse-panel" id="open-project-discovery"><div className="panel-heading"><div><p className="eyebrow">YOUR WORKSPACE</p><h2>Projects & proposals</h2></div>{liveStatus === "live" && <span className="live-pill">Live updates</span>}{liveStatus === "reconnecting" && <span className="live-pill reconnecting">Reconnecting…</span>}</div>
       <div className="tab-row" role="tablist" aria-label="Project views">
         <button role="tab" aria-selected={tab === "discover"} className={tab === "discover" ? "active" : ""} onClick={() => setTab("discover")}>Discover <span>{projectInfo.summary?.open ?? open.length}</span></button>
         <button role="tab" aria-selected={tab === "saved"} className={tab === "saved" ? "active" : ""} onClick={() => { setTab("saved"); setProjectPage(1); }}>Saved <span>{projectInfo.summary?.saved ?? savedOpen.length}</span></button>
@@ -242,7 +264,9 @@ export default function FreelancerDashboard() {
             <span className="market-job-category">{projectCategoryLabel(project)}</span><h3>{project.title}</h3><p className="card-brief">{project.description || "Project details available in the full brief."}</p>
             <div className="skill-list">{(project.requiredSkills || []).map(item => <span className="skill-chip" key={item}>{item}</span>)}</div>
             <div className="card-facts"><div><small>Budget</small><strong>{money(project.budget)}</strong></div><div><small>Target date</small><strong>{project.deadline}</strong></div></div>
-            <button className={`button ${application ? "button-outline" : "button-dark"} full`} disabled={Boolean(application)} onClick={() => openBrief(project)}>{application ? `Application ${application.status.toLowerCase()}` : "View brief & apply ↗"}</button>
+            {briefOpenError?.source === "discovery" && briefOpenError.projectId === project._id && <p className="brief-load-error" role="alert">{briefOpenError.message}</p>}
+            <button className={`button ${application ? "button-outline" : "button-dark"} full`} disabled={Boolean(application) || Boolean(openingProjectId)} onClick={() => openBrief(project)}>{application ? application.status === "PENDING" ? "Proposal sent" : `Application ${application.status.toLowerCase()}` : openingProjectId === project._id ? "Opening brief…" : "View brief & apply ↗"}</button>
+            {openingProjectId === project._id && <div className="brief-load-status" role="status">Loading the latest brief.<button type="button" className="text-button" onClick={cancelBriefLoad}>Cancel loading</button></div>}
           </article>;
         })}</div>}
         {tab === "discover" && !discoveryLoading && !discoveryError && discoveryPages > 1 && <nav className="market-pagination dashboard-pagination" aria-label="Project result pages"><button className="button button-outline" disabled={page <= 1} onClick={() => updateDiscovery({ page: String(page - 1) }, false)}>← Previous</button><span>Page {page} of {discoveryPages}</span><button className="button button-outline" disabled={page >= discoveryPages} onClick={() => updateDiscovery({ page: String(page + 1) }, false)}>Next →</button></nav>}

@@ -1,4 +1,4 @@
-# Cold-start support: phases 1 and 2
+# Cold-start support
 
 New freelancers can build a starting profile and discover relevant open work without previous clients or approved milestones. This is content-based cold-start support, not evidence that real hiring outcomes or fairness have been validated.
 
@@ -22,8 +22,14 @@ Client talent search supports `history=none` (no approved platform milestones) a
 
 First approved work removes a freelancer from the no-history filter and starts the existing evidence-based trust calculation. It does not change the content-based project recommendation algorithm.
 
-## Verification and remaining phase 3
+## Phase 3: flow finishing and feedback collection
+
+Setup/preference/availability links focus the actual profile field once saved details load. Saving locks the form to prevent edits being overwritten by the response; a failed save retains the draft and moves focus to the feedback message. Suggested and ordinary briefs show loading, prevent repeat requests, allow cancellation and offer inline retry. Cancelling or changing dashboard tabs ignores late brief responses. Phone layouts wrap actions and keep the profile controls readable.
+
+Setup and suggestion feedback links open the existing private Support page with an editable subject and an empty message. Opening the page does not submit feedback. The normal explicit submission and administrator reply flow is used, without enabling email or collecting background analytics.
+
+## Verification and remaining human validation
 
 Focused disposable-database checks cover saved preferences, legacy preservation, input/role restrictions, no-history recommendations, global ranking/pagination, aliases, hidden/closed/expired/suspended listings, existing applications, consented talent visibility and first-approval transitions. Frontend coverage includes setup/save, recommendation explanations/retry/opening and history filters. These checks are functional examples, not a real-world accuracy or fairness result.
 
-Phase 3 remains broader pilot-user feedback and independent, consented relevance evaluation. See `research/PROTOCOL.md` for evidence requirements. No research result, public deployment, email activation, API key or independent dataset was created by this batch.
+Phase 3 code and collection preparation are implemented; broader pilot-user feedback and independent, consented relevance evaluation remain pending. See `research/COLD_START_PILOT.md` and its empty observation/relevance templates. The existing `research/PROTOCOL.md` covers applicant matching, which is a separate evaluation target. No human results, public deployment, email activation, API key or independent dataset were created by this batch.
