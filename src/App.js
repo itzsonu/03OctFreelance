@@ -14,6 +14,7 @@ import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import ClientDashboard from "./pages/ClientDashboard";
 import FreelancerDashboard from "./pages/FreelancerDashboard";
+import TaskBoard from "./pages/TaskBoard";
 import MilestoneChain from "./pages/MilestoneChain";
 import WorkroomInbox from "./pages/WorkroomInbox";
 import FreelancerProfile from "./pages/FreelancerProfile";
@@ -43,6 +44,7 @@ import "./AccountSettings.css";
 import "./Typography.css";
 import "./ProposalExperience.css";
 import "./ColdStart.css";
+import "./TaskBoard.css";
 
 function App() {
   return (
@@ -81,6 +83,7 @@ function App() {
           }
         />
         <Route path="/profile" element={<ProtectedRoute allowedRole="freelancer"><FreelancerProfile /></ProtectedRoute>} />
+        <Route path="/task-boards/:projectId?" element={<ProtectedRoute allowedRole="freelancer"><TaskBoard /></ProtectedRoute>} />
         <Route path="/talent" element={<ProtectedRoute allowedRole="client"><TalentDirectory /></ProtectedRoute>} />
         <Route path="/talent/:freelancerId" element={<ProtectedRoute allowedRole="client"><TalentProfile /></ProtectedRoute>} />
         <Route path="/workrooms" element={<ProtectedRoute><WorkroomInbox /></ProtectedRoute>} />

@@ -48,6 +48,7 @@ app.use("/api/talent", require("./routes/talentRoutes"));
 app.use("/api/invitations", require("./routes/invitationRoutes"));
 app.use("/api/messages", require("./routes/messageRoutes"));
 app.use("/api/workrooms", require("./routes/workroomRoutes"));
+app.use("/api/task-boards", require("./routes/taskBoardRoutes"));
 app.use("/api/admin", require("./routes/adminRoutes"));
 app.use("/api/reviews", require("./routes/reviewRoutes"));
 app.use("/api/notifications", require("./routes/notificationRoutes"));

@@ -30,6 +30,7 @@ export default function Shell({ role, eyebrow, title, subtitle, action, children
             <span className="nav-icon">▦</span>{dashboardLabel}
           </Link>
           {role !== "admin" && <Link className={`shell-nav-link ${location.pathname === "/workrooms" ? "active" : ""}`} to="/workrooms"><span className="nav-icon">▤</span>Project inbox</Link>}
+          {role === "freelancer" && <Link className={`shell-nav-link ${location.pathname.startsWith("/task-boards") ? "active" : ""}`} to="/task-boards"><span className="nav-icon">▥</span>Task boards</Link>}
           {role === "admin" && <Link className={`shell-nav-link ${location.pathname === "/admin/cases" ? "active" : ""}`} to="/admin/cases"><span className="nav-icon">▤</span>Case queue</Link>}
           {role === "client" && <Link className={`shell-nav-link ${location.pathname === "/talent" ? "active" : ""}`} to="/talent"><span className="nav-icon">⌕</span>Find talent</Link>}
           {role === "freelancer" && <Link className={`shell-nav-link ${location.pathname === "/profile" ? "active" : ""}`} to="/profile"><span className="nav-icon">◉</span>My profile</Link>}
@@ -45,7 +46,14 @@ export default function Shell({ role, eyebrow, title, subtitle, action, children
       </aside>
       <div className="shell-main">
         <header className="mobile-bar"><Link className="brand" to="/"><span className="brand-mark">✦</span>FreelanceChain</Link><button className="text-button" disabled={signingOut} onClick={logout}>{signingOut ? "Signing out…" : "Sign out"}</button></header>
-        <nav className="mobile-nav" aria-label="Mobile workspace navigation"><Link to={dashboardPath} aria-current={location.pathname === dashboardPath ? "page" : undefined}>{dashboardLabel}</Link>{role !== "admin" && <Link to="/workrooms" aria-current={location.pathname === "/workrooms" ? "page" : undefined}>Project inbox</Link>}{role === "client" ? <Link to="/talent" aria-current={location.pathname === "/talent" ? "page" : undefined}>Find talent</Link> : role === "freelancer" ? <Link to="/profile" aria-current={location.pathname === "/profile" ? "page" : undefined}>My profile</Link> : null}{role === "admin" && <><Link to="/admin/support">Support queue</Link><Link to="/admin/storage">Storage</Link></>}<Link to="/support">Support</Link><Link to="/account" aria-current={location.pathname === "/account" ? "page" : undefined}>Account</Link></nav>
+        <nav className="mobile-nav" aria-label="Mobile workspace navigation">
+          <Link to={dashboardPath} aria-current={location.pathname === dashboardPath ? "page" : undefined}>{dashboardLabel}</Link>
+          {role !== "admin" && <Link to="/workrooms" aria-current={location.pathname === "/workrooms" ? "page" : undefined}>Project inbox</Link>}
+          {role === "freelancer" && <Link to="/task-boards" aria-current={location.pathname.startsWith("/task-boards") ? "page" : undefined}>Task boards</Link>}
+          {role === "client" ? <Link to="/talent" aria-current={location.pathname === "/talent" ? "page" : undefined}>Find talent</Link> : role === "freelancer" ? <Link to="/profile" aria-current={location.pathname === "/profile" ? "page" : undefined}>My profile</Link> : null}
+          {role === "admin" && <><Link to="/admin/support">Support queue</Link><Link to="/admin/storage">Storage</Link></>}
+          <Link to="/support">Support</Link><Link to="/account" aria-current={location.pathname === "/account" ? "page" : undefined}>Account</Link>
+        </nav>
         <div className="shell-topline"><span>{eyebrow}</span><div className="topline-actions"><NotificationCenter /><span className="topline-user"><span className="online-dot" /> {user?.name}</span></div></div>
         <div className="page-heading"><div><p className="eyebrow">{eyebrow}</p><h1>{title}</h1><p className="page-subtitle">{subtitle}</p></div>{action}</div>
         <main id="workspace-content">{children}</main><footer className="workspace-policies"><PolicyLinks /></footer>

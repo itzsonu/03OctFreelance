@@ -41,6 +41,7 @@ function actionFor(req) {
   if (path.startsWith("/api/applications/")) return ["hiring-actions", 60, 10 * MINUTE, 240];
   if (path.startsWith("/api/invitations")) return ["invitations", 15, 10 * MINUTE, 60];
   if (path.startsWith("/api/project-drafts")) return ["draft-saving", 30, MINUTE, 120];
+  if (path.startsWith("/api/task-boards/")) return ["task-changes", 60, MINUTE, 180];
   if (path.startsWith("/api/account")) return ["account-changes", 20, 15 * MINUTE, 100];
   return null;
 }
