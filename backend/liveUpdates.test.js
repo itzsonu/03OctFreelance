@@ -1,7 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { EventEmitter } = require("node:events");
-const { subscribe, publishProject, publishMarketplace } = require("./liveUpdates");
+const { subscribe, publishProject, publishMarketplace, publishUser } = require("./liveUpdates");
 
 function connection(userId, role) {
   const res = new EventEmitter();
@@ -33,4 +33,15 @@ test("project signals reach only the client and assigned freelancer; marketplace
     freelancer.emit("close");
     otherClient.emit("close");
   }
+});
+
+test("private task signals reach only their owner and contain no task content", () => {
+  const owner = connection("task-owner", "freelancer"), client = connection("task-client", "client"), other = connection("task-other", "freelancer");
+  try {
+    publishUser("task-owner", "tasks", "project-private");
+    assert.equal(owner.writes.filter(value => value.includes("event: tasks")).length, 1);
+    assert.equal(client.writes.filter(value => value.includes("event: tasks")).length, 0);
+    assert.equal(other.writes.filter(value => value.includes("event: tasks")).length, 0);
+    assert.match(owner.writes.at(-1), /"projectId":"project-private"/);
+  } finally { owner.emit("close"); client.emit("close"); other.emit("close"); }
 });

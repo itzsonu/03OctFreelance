@@ -4,6 +4,8 @@ const Project = require("../models/Project");
 const ProjectTask = require("../models/ProjectTask");
 const { protect, allowRoles } = require("../middleware/authMiddleware");
 const { pagination, envelope } = require("../pagination");
+const { publishUser } = require("../liveUpdates");
+const { assignedTasks } = require("../taskReminders");
 
 const router = express.Router();
 const boardStatuses = ["In Progress", "Completed", "Cancelled"];
@@ -54,11 +56,11 @@ async function ownProject(req, writable = false) {
   return project;
 }
 function taskView(task) {
-  return { _id: task._id, title: task.title, description: task.description, status: task.status, priority: task.priority, dueDate: task.dueDate, milestoneId: task.milestoneId, checklist: task.checklist || [], version: task.__v, createdAt: task.createdAt, updatedAt: task.updatedAt };
+  return { _id: task._id, title: task.title, description: task.description, status: task.status, priority: task.priority, dueDate: task.dueDate, milestoneId: task.milestoneId, checklist: task.checklist || [], reminderAt: task.reminderAt || null, reminderSentAt: task.reminderSentAt || null, activity: task.activity || [], version: task.__v, createdAt: task.createdAt, updatedAt: task.updatedAt };
 }
 function taskFields(body, project, editing = false, current = null) {
   if (!body || typeof body !== "object" || Array.isArray(body)) fail(400, "Enter task details");
-  const allowed = ["title", "description", "status", "priority", "dueDate", "milestoneId", "checklist", ...(editing ? ["version"] : [])];
+  const allowed = ["title", "description", "status", "priority", "dueDate", "milestoneId", "checklist", "reminderAt", ...(editing ? ["version"] : [])];
   if (Object.keys(body).some(key => !allowed.includes(key))) fail(400, "Invalid task field");
   const fields = {};
   const text = (key, maximum, required) => {
@@ -98,6 +100,21 @@ function taskFields(body, project, editing = false, current = null) {
       return { ...(item._id ? { _id: item._id } : {}), title: item.title.trim(), done: item.done || false };
     });
   }
+  if (Object.hasOwn(body, "reminderAt")) {
+    const value = body.reminderAt;
+    const date = typeof value === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(value) ? new Date(value) : null;
+    if (value !== null && (!date || Number.isNaN(date.getTime()) || date.toISOString() !== value.replace(/Z$/, value.includes(".") ? "Z" : ".000Z"))) fail(400, "Enter a valid reminder time");
+    const unchanged = (date?.getTime() || null) === (current?.reminderAt ? new Date(current.reminderAt).getTime() : null);
+    if (!unchanged && date && date <= new Date()) fail(400, "Choose a reminder time in the future");
+    if (!unchanged) {
+      fields.reminderAt = date; fields.reminderSentAt = null;
+      fields.reminderToken = date ? new mongoose.Types.ObjectId() : null;
+    }
+  }
+  if ((fields.status || current?.status) === "done") {
+    if (fields.reminderAt) fail(400, "Done tasks cannot have a reminder. Clear it before saving.");
+    if (current?.reminderAt) { fields.reminderAt = null; fields.reminderToken = null; fields.reminderSentAt = null; }
+  }
   if (editing && (!Number.isSafeInteger(body.version) || body.version < 0)) fail(400, "Load the latest task before saving");
   if (editing && !Object.keys(fields).length) fail(400, "Choose a task detail to update");
   return fields;
@@ -112,6 +129,40 @@ router.get("/", async (req, res) => {
       Project.countDocuments(filter),
     ]);
     res.json(envelope(items, total, paging));
+  } catch (error) { handleError(res, error); }
+});
+router.get("/mine", async (req, res) => {
+  try {
+    if (Object.keys(req.query).some(key => !["page", "pageSize", "q", "priority", "today", "view"].includes(key))) fail(400, "Invalid tasks query");
+    const paging = pagination(req.query, 20);
+    const search = searchFilter(req.query);
+    const view = req.query.view === undefined ? "open" : req.query.view;
+    if (typeof view !== "string" || !["open", "today", "upcoming", "overdue", "done"].includes(view)) fail(400, "Invalid task view");
+    const filters = {
+      open: { status: { $ne: "done" } },
+      today: { status: { $ne: "done" }, dueDate: search.today },
+      upcoming: { status: { $ne: "done" }, dueDate: { $gt: search.today } },
+      overdue: { status: { $ne: "done" }, dueDate: { $gt: "", $lt: search.today } },
+      done: { status: "done" },
+    };
+    const base = [...assignedTasks(req.user._id), { $match: search.filter }];
+    const [result] = await ProjectTask.aggregate([...base, { $facet: {
+      items: [{ $match: filters[view] }, { $addFields: { undated: { $cond: [{ $eq: ["$dueDate", ""] }, 1, 0] } } },
+        { $sort: { undated: 1, dueDate: 1, _id: 1 } }, { $skip: paging.skip }, { $limit: paging.pageSize }],
+      ...Object.fromEntries(Object.entries(filters).map(([key, filter]) => [key, [{ $match: filter }, { $count: "count" }]])),
+    } }]);
+    const counts = Object.fromEntries(Object.keys(filters).map(key => [key, result[key][0]?.count || 0]));
+    const items = result.items.map(task => ({ ...taskView(task), project: { _id: task.projectInfo._id, title: task.projectInfo.title } }));
+    res.json(envelope(items, counts[view], paging, { counts, today: search.today }));
+  } catch (error) { handleError(res, error); }
+});
+router.get("/:projectId/tasks/:taskId", async (req, res) => {
+  try {
+    const project = await ownProject(req);
+    if (!mongoose.isObjectIdOrHexString(req.params.taskId)) fail(404, "Task not found");
+    const task = await ProjectTask.findOne({ _id: req.params.taskId, project: project._id, owner: req.user._id }).lean();
+    if (!task) fail(404, "Task not found");
+    res.json({ task: taskView(task) });
   } catch (error) { handleError(res, error); }
 });
 router.get("/:projectId", async (req, res) => {
@@ -139,7 +190,8 @@ router.post("/:projectId/tasks", async (req, res) => {
   try {
     const project = await ownProject(req, true);
     const fields = taskFields(req.body, project);
-    const task = await ProjectTask.create({ ...fields, project: project._id, owner: req.user._id });
+    const task = await ProjectTask.create({ ...fields, project: project._id, owner: req.user._id, activity: [{ at: new Date(), summary: "Task created." }] });
+    publishUser(req.user._id, "tasks", project._id);
     res.status(201).json({ task: taskView(task) });
   } catch (error) { handleError(res, error); }
 });
@@ -153,11 +205,18 @@ router.patch("/:projectId/tasks/:taskId", async (req, res) => {
     if (!Number.isSafeInteger(req.body?.version) || req.body.version < 0) fail(400, "Load the latest task before saving");
     if (current.__v !== req.body.version) fail(409, "This task changed in another tab. Refresh the board before editing again. Your unsaved edits are still in the form.");
     const fields = taskFields(req.body, project, true, current);
-    const task = await ProjectTask.findOneAndUpdate({ ...filter, __v: req.body.version }, { $set: fields, $inc: { __v: 1 } }, { returnDocument: "after", runValidators: true }).lean();
+    const labels = { title: "title", description: "description", status: "status", priority: "priority", dueDate: "due date", milestoneId: "linked milestone", checklist: "subtasks", reminderAt: "reminder" };
+    const comparable = (key, value) => key === "reminderAt" ? (value ? new Date(value).toISOString() : null) : key === "milestoneId" ? String(value || "") : value;
+    const changes = Object.keys(labels).filter(key => Object.hasOwn(fields, key) && JSON.stringify(comparable(key, current[key] ?? (key === "checklist" ? [] : null))) !== JSON.stringify(comparable(key, fields[key])));
+    const statusNames = { todo: "To do", in_progress: "In progress", review: "Review", done: "Done" };
+    const summary = changes.includes("status") ? `Status: ${statusNames[current.status]} → ${statusNames[fields.status]}.${changes.length > 1 ? " Updated " + changes.filter(key => key !== "status").map(key => labels[key]).join(", ") + "." : ""}` : `Updated ${changes.map(key => labels[key]).join(", ")}.`;
+    const update = { $set: fields, $inc: { __v: 1 }, ...(changes.length ? { $push: { activity: { $each: [{ at: new Date(), summary }], $slice: -100 } } } : {}) };
+    const task = await ProjectTask.findOneAndUpdate({ ...filter, __v: req.body.version }, update, { returnDocument: "after", runValidators: true }).lean();
     if (!task) {
       if (await ProjectTask.exists(filter)) fail(409, "This task changed in another tab. Close the editor and refresh the board before editing again. Your draft has been kept here.");
       fail(404, "Task not found");
     }
+    publishUser(req.user._id, "tasks", project._id);
     res.json({ task: taskView(task) });
   } catch (error) { handleError(res, error); }
 });

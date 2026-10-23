@@ -7,13 +7,15 @@ async function start() {
   await deployment.checkPrivateStorage();
   await require("./db")();
   await Promise.all([require("./models/Session").init(), require("./models/RateBucket").init(), require("./models/StorageUsage").init(), require("./models/SupportRequest").init()]);
+  await Promise.all([require("./models/ProjectTask").init(), require("./models/Notification").init()]);
   const app = require("./app");
   const stopWorker = require("./eventEmails").startEventEmailWorker();
+  const stopTaskWorker = require("./taskReminders").startTaskReminderWorker();
   let stopping = false;
   const server = app.listen(settings.port, settings.host, () => console.log("Server running on port " + settings.port));
   async function shutdown() {
     if (stopping) return; stopping = true; app.locals.draining = true;
-    stopWorker(); require("./liveUpdates").disconnectAll();
+    stopWorker(); stopTaskWorker(); require("./liveUpdates").disconnectAll();
     const deadline = setTimeout(() => { server.closeAllConnections(); process.exit(1); }, 25000); deadline.unref();
     await new Promise(resolve => server.close(resolve));
     await mongoose.disconnect(); clearTimeout(deadline);

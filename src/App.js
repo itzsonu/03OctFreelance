@@ -15,6 +15,7 @@ import ResetPassword from "./pages/ResetPassword";
 import ClientDashboard from "./pages/ClientDashboard";
 import FreelancerDashboard from "./pages/FreelancerDashboard";
 import TaskBoard from "./pages/TaskBoard";
+import MyTasks from "./pages/MyTasks";
 import MilestoneChain from "./pages/MilestoneChain";
 import WorkroomInbox from "./pages/WorkroomInbox";
 import FreelancerProfile from "./pages/FreelancerProfile";
@@ -83,6 +84,7 @@ function App() {
           }
         />
         <Route path="/profile" element={<ProtectedRoute allowedRole="freelancer"><FreelancerProfile /></ProtectedRoute>} />
+        <Route path="/my-tasks" element={<ProtectedRoute allowedRole="freelancer"><MyTasks /></ProtectedRoute>} />
         <Route path="/task-boards/:projectId?" element={<ProtectedRoute allowedRole="freelancer"><TaskBoard /></ProtectedRoute>} />
         <Route path="/talent" element={<ProtectedRoute allowedRole="client"><TalentDirectory /></ProtectedRoute>} />
         <Route path="/talent/:freelancerId" element={<ProtectedRoute allowedRole="client"><TalentProfile /></ProtectedRoute>} />

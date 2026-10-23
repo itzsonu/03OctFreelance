@@ -160,7 +160,7 @@ export function subscribeUpdates(onEvent) {
           buffer = buffer.slice(boundary + 2);
           const type = frame.split("\n").find(line => line.startsWith("event:"))?.slice(6).trim();
           const rawData = frame.split("\n").find(line => line.startsWith("data:"))?.slice(5).trim();
-          if (!["project", "applications", "marketplace", "messages", "notifications"].includes(type) || !rawData) continue;
+          if (!["project", "applications", "marketplace", "messages", "notifications", "tasks"].includes(type) || !rawData) continue;
           try { onEvent({ type, ...JSON.parse(rawData) }); } catch { /* ignore an invalid event */ }
         }
         if (buffer.length > 16384) buffer = "";

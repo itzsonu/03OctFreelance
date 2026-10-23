@@ -30,6 +30,7 @@ export default function Shell({ role, eyebrow, title, subtitle, action, children
             <span className="nav-icon">▦</span>{dashboardLabel}
           </Link>
           {role !== "admin" && <Link className={`shell-nav-link ${location.pathname === "/workrooms" ? "active" : ""}`} to="/workrooms"><span className="nav-icon">▤</span>Project inbox</Link>}
+          {role === "freelancer" && <Link className={`shell-nav-link ${location.pathname === "/my-tasks" ? "active" : ""}`} to="/my-tasks"><span className="nav-icon">✓</span>My tasks</Link>}
           {role === "freelancer" && <Link className={`shell-nav-link ${location.pathname.startsWith("/task-boards") ? "active" : ""}`} to="/task-boards"><span className="nav-icon">▥</span>Task boards</Link>}
           {role === "admin" && <Link className={`shell-nav-link ${location.pathname === "/admin/cases" ? "active" : ""}`} to="/admin/cases"><span className="nav-icon">▤</span>Case queue</Link>}
           {role === "client" && <Link className={`shell-nav-link ${location.pathname === "/talent" ? "active" : ""}`} to="/talent"><span className="nav-icon">⌕</span>Find talent</Link>}
@@ -49,6 +50,7 @@ export default function Shell({ role, eyebrow, title, subtitle, action, children
         <nav className="mobile-nav" aria-label="Mobile workspace navigation">
           <Link to={dashboardPath} aria-current={location.pathname === dashboardPath ? "page" : undefined}>{dashboardLabel}</Link>
           {role !== "admin" && <Link to="/workrooms" aria-current={location.pathname === "/workrooms" ? "page" : undefined}>Project inbox</Link>}
+          {role === "freelancer" && <Link to="/my-tasks" aria-current={location.pathname === "/my-tasks" ? "page" : undefined}>My tasks</Link>}
           {role === "freelancer" && <Link to="/task-boards" aria-current={location.pathname.startsWith("/task-boards") ? "page" : undefined}>Task boards</Link>}
           {role === "client" ? <Link to="/talent" aria-current={location.pathname === "/talent" ? "page" : undefined}>Find talent</Link> : role === "freelancer" ? <Link to="/profile" aria-current={location.pathname === "/profile" ? "page" : undefined}>My profile</Link> : null}
           {role === "admin" && <><Link to="/admin/support">Support queue</Link><Link to="/admin/storage">Storage</Link></>}

@@ -1,4 +1,4 @@
-# Private task boards: phases 1 and 2
+# Private task boards: phases 1–3
 
 Freelancers can open Task boards from the desktop/mobile workspace navigation, a project under My projects, or their assigned project's milestone workspace. Each assigned project has its own board with To do, In progress, Review and Done columns.
 
@@ -10,7 +10,7 @@ In Progress projects allow planning changes, including while project terms/cance
 
 Saves lock the editor and duplicate clicks while a request is pending. Failed edits remain in the form. Updates carry a version checked by the server: a stale tab receives a conflict instead of overwriting newer edits. Refresh the board before editing a conflicted task again; copy any unsaved changes before closing the editor. A milestone removed by a project amendment is labelled as removed on the task; its link can be cleared or replaced when editing.
 
-Project selection is paginated. A board loads 50 tasks at a time in creation order and explicitly shows how many are loaded; Load more tasks retrieves remaining work. Refresh board retrieves changes from other tabs.
+Project selection is paginated. A board loads 50 tasks at a time in creation order and explicitly shows how many are loaded; Load more tasks retrieves remaining work. Private live events refresh the loaded window when safe; Refresh board remains available as a manual retry.
 
 ## Phase 2: daily workflow
 
@@ -24,17 +24,31 @@ Board progress always counts every parent task in this private project board, re
 
 After a save/move/checklist change, the active filtered window and progress are refreshed from the server. A successful save followed by a failed refresh is reported as saved, with a request to refresh counts; it is not presented as a failed save. Existing task versions and private ownership protections still apply. Existing tasks without a checklist are returned with an empty list; no user data migration/reset is needed.
 
-Phase 3 still includes reminders, activity history, automatic cross-tab updates and the all-project task overview. These are not activated by this batch.
+## Phase 3: across-project planning
+
+My tasks in desktop/mobile navigation combines private tasks across currently assigned In Progress projects. All open includes undated tasks. Today includes unfinished tasks due on the supplied local day; Upcoming includes future due dates; Overdue excludes today, undated and Done tasks. Done shows completed tasks in active projects. Ended project tasks remain in read-only project boards. Search/priority filters run before counts and pagination; tab counts reflect those filters. Tasks sort by due date, with undated tasks last. Refresh tasks updates the date reference after midnight.
+
+Open task and reminder links load the requested task directly, even beyond the board's loaded page or active filters. Saving retains board filters. Edits and moves append server-generated private activity atomically with the version-checked change. The latest 100 changes are retained. Older tasks begin with no invented history. History describes changed fields and status transitions rather than copying old description text.
+
+The editor accepts one optional future reminder in browser local time and stores the instant in MongoDB. It creates one in-app notification; no email or browser notification permission is involved. Delivered reminders can be cleared or rescheduled. Done clears a reminder; reopening does not restore an old schedule. Ended/reassigned projects and suspended recipients are ineligible. Cancelled/replaced/no-longer-eligible reminder notifications are excluded from the notification list and unread count. Unique schedule tokens prevent duplicates across concurrent workers and retries, including a crash between notification creation and acknowledgement.
+
+The normal backend scans at startup and every 30 seconds. Due reminders catch up after a restart. An offline/sleeping server cannot deliver until it runs again; this is not a precise alarm. Serverless deployment requires a compatible scheduler/worker adaptation. The task worker never queues email.
+
+Private owner-only events refresh My tasks and boards, including after reconnect. An editor, save, drag or page load defers updates without discarding a draft. Stale saves still receive a conflict. Task events carry only a project ID and never go to clients. Login sessions remain in MongoDB Session with hashed cookie tokens and expiry; tasks/history live separately in ProjectTask. No private planning data is stored in localStorage.
 
 ## API
 
 - `GET /api/task-boards?page=1&pageSize=12`: assigned projects with board access.
+- `GET /api/task-boards/mine?view=open&today=YYYY-MM-DD&page=1&pageSize=20`: active-project tasks and counts for open/today/upcoming/overdue/done; optional q and priority.
+- `GET /api/task-boards/:projectId/tasks/:taskId`: private task details, reminder delivery and recent activity, including tasks beyond the loaded page.
 - `GET /api/task-boards/:projectId?page=1&pageSize=50`: project summary, current milestones, the owner's paginated private tasks, full matching column counts and whole-board progress. Optional `q`, `status`, `priority`, `due=overdue`, `today=YYYY-MM-DD` filters are validated.
 - `POST /api/task-boards/:projectId/tasks`: create a task.
-- `PATCH /api/task-boards/:projectId/tasks/:taskId`: update allowed fields with the loaded `version`.
+- `PATCH /api/task-boards/:projectId/tasks/:taskId`: update allowed fields with the loaded `version`. Optional `reminderAt` is null or an ISO UTC instant; changed non-null reminders must be in the future.
 
 Existing sessions, CSRF checks and request limits apply. Task responses use private/no-store caching. Ownership cannot be supplied or changed through task payloads. Dates and milestone membership are checked on the server.
 
 ## Focused verification
 
 From backend: `node --test taskBoards.test.js` uses a uniquely named disposable database and removes only that database. It covers ownership/privacy, persistence, invalid fields, cross-project milestones, stale updates, global filtering/progress, checklist identity/completion, paging, reassignment and ended projects. Frontend TaskBoard tests exercise create/move/edit failures, drag/keyboard movement, checklist changes, filters, read-only boards and navigation. These are functional checks, not a real-user pilot.
+
+Phase 3 verification: `node --test taskBoards.test.js taskDaily.test.js liveUpdates.test.js` covers private daily views/counts, direct links, assignment/end-state eligibility, atomic bounded history, reminder validation, concurrent-worker deduplication, retry after partial delivery, notification visibility, no email delivery and private event routing. Frontend TaskBoard/MyTasks/LiveUpdates/apiSecurity suites cover deep links, local-time payloads, retries, filtering/paging and live changes deferred around open drafts. A disposable two-project browser preview additionally verified notification-to-task navigation, real cross-tab draft preservation, reminder rescheduling and 390 px layouts. No production deployment or real-user pilot is claimed.

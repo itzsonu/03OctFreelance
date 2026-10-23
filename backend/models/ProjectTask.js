@@ -15,7 +15,13 @@ const schema = new mongoose.Schema({
   dueDate: { type: String, default: "" },
   milestoneId: { type: mongoose.Schema.Types.ObjectId, default: null },
   checklist: { type: [checklistItem], default: [] },
+  reminderAt: { type: Date, default: null },
+  reminderToken: { type: mongoose.Schema.Types.ObjectId, default: null },
+  reminderSentAt: { type: Date, default: null },
+  activity: { type: [{ at: { type: Date, required: true }, summary: { type: String, required: true, maxlength: 300 } }], default: [] },
 }, { timestamps: true, optimisticConcurrency: true });
 
 schema.index({ project: 1, owner: 1, createdAt: 1, _id: 1 });
+schema.index({ owner: 1, dueDate: 1, _id: 1 });
+schema.index({ reminderSentAt: 1, reminderAt: 1 });
 module.exports = mongoose.model("ProjectTask", schema);

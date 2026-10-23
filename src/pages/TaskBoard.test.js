@@ -1,10 +1,10 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import TaskBoard from "./TaskBoard";
-import { api } from "../api";
-jest.mock("../api", () => ({ api: jest.fn(), currentUser: () => ({ id: "owner", name: "Freelancer" }), signOut: jest.fn() }));
+import { api, subscribeUpdates } from "../api";
+jest.mock("../api", () => ({ api: jest.fn(), subscribeUpdates: jest.fn(() => () => {}), currentUser: () => ({ id: "owner", name: "Freelancer" }), signOut: jest.fn() }));
 jest.mock("../components/NotificationCenter", () => () => null);
-beforeEach(() => api.mockReset());
+beforeEach(() => { api.mockReset(); subscribeUpdates.mockClear(); });
 const project = { _id: "p1", title: "Booking dashboard", status: "In Progress", editable: true, milestones: [{ _id: "m1", title: "Build interface" }] };
 const task = { _id: "t1", title: "Build booking form", description: "Use accessible fields.", status: "todo", priority: "high", dueDate: "2030-12-20", milestoneId: "m1", version: 0 };
 const result = (items = [], changes = {}) => ({ project, items, total: items.length, pages: items.length ? 1 : 0, page: 1, pageSize: 50, summary: { total: items.length, done: items.filter(item => item.status === "done").length, overdue: 0 }, counts: Object.fromEntries(["todo", "in_progress", "review", "done"].map(status => [status, items.filter(item => item.status === status).length])), ...changes });
@@ -27,7 +27,7 @@ test("create, link and move a task through the private board", async () => {
   fireEvent.change(within(dialog).getByLabelText(/Linked milestone/), { target: { value: "m1" } });
   fireEvent.click(within(dialog).getByRole("button", { name: "Create task" }));
   const card = await screen.findByRole("article", { name: task.title });
-  expect(api).toHaveBeenCalledWith("/task-boards/p1/tasks", { method: "POST", body: JSON.stringify({ title: task.title, description: task.description, status: "todo", priority: "high", dueDate: task.dueDate, milestoneId: "m1", checklist: [] }) });
+  expect(api).toHaveBeenCalledWith("/task-boards/p1/tasks", { method: "POST", body: JSON.stringify({ title: task.title, description: task.description, status: "todo", priority: "high", dueDate: task.dueDate, milestoneId: "m1", checklist: [], reminderAt: null }) });
   expect(within(card).getByText("Milestone: Build interface")).toBeInTheDocument();
   fireEvent.change(within(card).getByLabelText(`Status for ${task.title}`), { target: { value: "in_progress" } });
   await waitFor(() => expect(within(screen.getByRole("region", { name: "In progress tasks" })).getByRole("article", { name: task.title })).toBeInTheDocument());
@@ -162,4 +162,43 @@ test("a saved task with a failed refresh is clearly reported as saved", async ()
   expect(await screen.findByRole("alert")).toHaveTextContent("Task saved, but the board could not refresh");
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   expect(screen.getByText("urgent priority")).toBeInTheDocument();
+});
+
+test("a deep link opens an unloaded task with history and keeps a failed reminder edit", async () => {
+  const linked = { ...task, _id: "t51", title: "Unloaded task", reminderAt: null, activity: [{ at: "2026-01-01T12:00:00.000Z", summary: "Task created." }] };
+  api.mockImplementation((path, options) => {
+    if (options?.method === "PATCH") return Promise.reject(new Error("Choose a reminder time in the future"));
+    return Promise.resolve(path.endsWith("/tasks/t51") ? { task: linked } : result([]));
+  });
+  mount("/task-boards/p1?task=t51&priority=urgent");
+  const dialog = await screen.findByRole("dialog");
+  expect(within(dialog).getByRole("textbox", { name: "Task title" })).toHaveValue("Unloaded task");
+  expect(within(dialog).getByRole("region", { name: "Task activity" })).toHaveTextContent("Task created.");
+  fireEvent.change(within(dialog).getByLabelText(/Remind me/), { target: { value: "2035-12-01T10:30" } });
+  fireEvent.click(within(dialog).getByRole("button", { name: "Save task", exact: true }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Choose a reminder time");
+  expect(screen.getByLabelText(/Remind me/)).toHaveValue("2035-12-01T10:30");
+  const payload = JSON.parse(api.mock.calls.find(([, options]) => options?.method === "PATCH")[1].body);
+  expect(payload.reminderAt).toBe(new Date("2035-12-01T10:30").toISOString());
+  expect(payload.version).toBe(0);
+});
+
+test("private live updates defer while editing and preserve an unsaved draft", async () => {
+  api.mockResolvedValue(result([task]));
+  mount();
+  fireEvent.click(await screen.findByRole("button", { name: `Edit task: ${task.title}` }));
+  fireEvent.change(screen.getByRole("textbox", { name: "Task title" }), { target: { value: "My unsaved title" } });
+  const receiver = subscribeUpdates.mock.calls.at(-1)[0];
+  await act(async () => receiver({ type: "tasks", projectId: "unrelated" }));
+  expect(api).toHaveBeenCalledTimes(1);
+  await act(async () => receiver({ type: "tasks", projectId: "p1" }));
+  expect(screen.getByText(/Updates waiting until you close/)).toBeInTheDocument();
+  expect(screen.getByRole("textbox", { name: "Task title" })).toHaveValue("My unsaved title");
+  expect(api).toHaveBeenCalledTimes(1);
+  api.mockResolvedValue(result([{ ...task, title: "Changed in another tab" }]));
+  fireEvent.click(screen.getByRole("button", { name: "Cancel", exact: true }));
+  expect(await screen.findByRole("article", { name: "Changed in another tab" })).toBeInTheDocument();
+  expect(api).toHaveBeenCalledTimes(2);
+  await act(async () => receiver({ type: "reconnected" }));
+  await waitFor(() => expect(api).toHaveBeenCalledTimes(3));
 });
