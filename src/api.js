@@ -77,6 +77,7 @@ export async function api(path, options = {}) {
   const publicAction = ["/auth/login", "/auth/register", "/auth/forgot-password", "/auth/reset-password", "/account/email/confirm", "/support", "/support/status"].includes(path);
   const beforeRecovery = generation;
   if (write) {
+    if (["/auth/login", "/auth/register"].includes(path)) await warmService();
     await waitForActiveRecovery();
     if (generation !== beforeRecovery || loginAttempt !== loginSequence) throw new Error("Your account changed. Review this action and try again.");
   }

@@ -29,7 +29,7 @@ export default function LoginRegister({ adminOnly = false }) {
         const projectId = search.get("project");
         navigate(data.user.role === "admin" ? "/admin/overview" : data.user.role === "client" ? "/client-dashboard" : projectId && /^[a-f0-9]{24}$/i.test(projectId) ? `/freelancer-dashboard?project=${projectId}` : "/freelancer-dashboard", { replace: true });
       }
-    } catch (err) { setError(err.message || "Unable to connect. Check that the server is running."); }
+    } catch (err) { setError(mode === "login" && err.message?.startsWith("Connection interrupted") ? "The connection dropped before sign-in finished. Please try logging in again." : err.message || "Unable to connect. Please try again shortly."); }
     finally { setBusy(false); }
   }
 

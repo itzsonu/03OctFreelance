@@ -10,12 +10,12 @@ beforeEach(() => {
 afterEach(() => { global.fetch = originalFetch; localStorage.clear(); });
 
 test("login and protected writes use cookies plus CSRF without persistent browser credentials", async () => {
-  global.fetch.mockResolvedValueOnce(response({ user, csrfToken: "csrf-one" })).mockResolvedValueOnce(response({ message: "Saved" }));
+  global.fetch.mockResolvedValueOnce(response({ status: "ready" })).mockResolvedValueOnce(response({ user, csrfToken: "csrf-one" })).mockResolvedValueOnce(response({ message: "Saved" }));
   await client.api("/auth/login", { method: "POST", body: "{}" });
   await client.api("/project-drafts", { method: "POST", body: "{}" });
   expect(client.currentUser()).toEqual(user);
   expect(localStorage.getItem("token")).toBeNull(); expect(localStorage.getItem("user")).toBeNull();
-  const options = global.fetch.mock.calls[1][1];
+  const options = global.fetch.mock.calls[2][1];
   expect(options.credentials).toBe("include");
   expect(options.headers["X-CSRF-Token"]).toBe("csrf-one");
   expect(options.headers["X-FreelanceChain-Request"]).toBe("1");
@@ -46,7 +46,7 @@ test("a late 401 from a previous session cannot erase a newer login", async () =
   global.fetch.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
   const oldRequest = client.api("/projects/mine").catch(() => {});
   const newUser = { id: "client-2", role: "client" };
-  global.fetch.mockResolvedValueOnce(response({ user: newUser, csrfToken: "new" }));
+  global.fetch.mockResolvedValueOnce(response({ status: "ready" })).mockResolvedValueOnce(response({ user: newUser, csrfToken: "new" }));
   await client.api("/auth/login", { method: "POST", body: "{}" });
   finish(response({ message: "Expired" }, 401));
   await oldRequest;
@@ -75,7 +75,7 @@ test("malformed session JSON cannot sign out an existing account or confirm a ne
   await expect(client.restoreSession()).rejects.toThrow("could not be confirmed");
   global.fetch.mockResolvedValueOnce(response({ user, csrfToken: "csrf-one" }));
   await client.restoreSession();
-  global.fetch.mockResolvedValueOnce(response({}));
+  global.fetch.mockResolvedValueOnce(response({ status: "ready" })).mockResolvedValueOnce(response({}));
   await expect(client.api("/auth/login", { method: "POST", body: "{}" })).rejects.toThrow("could not be confirmed");
   expect(client.currentUser()).toEqual(user);
 });
@@ -117,4 +117,14 @@ test("a write waits for active warm-up and is sent only once afterwards", async 
   await Promise.resolve();expect(global.fetch.mock.calls.filter(([url])=>url.endsWith("/project-drafts"))).toHaveLength(0);
   finish(response({status:"ready"}));await warming;await write;
   expect(global.fetch.mock.calls.filter(([url])=>url.endsWith("/project-drafts"))).toHaveLength(1);
+});
+
+
+test("login checks readiness before sending credentials and stops if readiness fails", async () => {
+  global.fetch.mockResolvedValueOnce(response({},403));
+  await expect(client.api("/auth/login",{method:"POST",body:"synthetic-credentials"})).rejects.toThrow("longer than expected");
+  expect(global.fetch.mock.calls.filter(([url])=>url.endsWith("/auth/login"))).toHaveLength(0);
+  global.fetch.mockResolvedValueOnce(response({status:"ready"})).mockResolvedValueOnce(response({user,csrfToken:"ready"}));
+  await client.api("/auth/login",{method:"POST",body:"synthetic-credentials"});
+  expect(global.fetch.mock.calls.filter(([url])=>url.endsWith("/auth/login"))).toHaveLength(1);
 });
