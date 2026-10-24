@@ -31,7 +31,7 @@ export default function AiComparisonDemo() {
         <span className="status">FICTIONAL SAMPLE DATA</span><h3>{sample.project.title}</h3><p>{sample.project.description}</p>
         <p><strong>Field:</strong> {sample.project.category} · <strong>Required:</strong> {sample.project.requiredSkills.join(", ")}</p>
         <p>Regular fit uses listed skills, experience and brief context. These samples have no verified platform history.</p>
-        <p>AI score = 60% text similarity + 40% regular fit, rounded to a whole number. A score is a comparison aid, not a probability of success.</p>
+        <p>AI score = 60% text similarity + 40% regular fit, rounded to a whole number. A score is a comparison aid, not a probability of success. Equal totals are ties; display order does not indicate a better match.</p>
         {sample.available ? <><p>Only this fixed fictional brief and these three profiles are sent to {sample.providerName}. Your project, profile and real applicants are not sent by this demo.</p><button className="button button-dark" type="button" disabled={busy || Boolean(result)} onClick={compare}>{busy ? "Comparing samples…" : result ? "Sample comparison complete" : "Compare sample profiles with AI"}</button></> : <p role="status">AI is unavailable. Regular sample fit scores are still shown below.</p>}
         {sample.dataNotice && <p className="form-help">{sample.dataNotice}</p>}
         {error && <p role="status">Regular sample scores remain available. No AI ranking has been substituted.</p>}
