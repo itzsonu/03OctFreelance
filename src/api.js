@@ -1,4 +1,5 @@
 import { announceSessionChange } from "./sessionChanges";
+import { ensureServiceReady, fetchWithRecovery, waitForActiveRecovery } from "./serviceRecovery";
 const API_BASE = (process.env.REACT_APP_API_URL || (process.env.NODE_ENV === "production" ? "/api" : "http://localhost:5000/api")).replace(/\/$/, "");
 
 let sessionUser = null;
@@ -27,7 +28,9 @@ function expireSession(requestGeneration) {
 
 export function currentUser() { return sessionUser; }
 
-async function readResponse(response) {
+export function warmService() { return ensureServiceReady(API_BASE + "/health/ready"); }
+
+async function readResponse(response, write = false) {
   try {
     const data = await response.json();
     if (!data || typeof data !== "object") throw new Error("Invalid API data");
@@ -36,7 +39,7 @@ async function readResponse(response) {
     // Keep unauthorized responses in the normal session-expiry path, even if a proxy sends HTML.
     if (response.status === 401) return {};
     throw new Error([502, 503, 504].includes(response.status)
-      ? "The service is starting or temporarily unavailable. Please wait a moment and try again."
+      ? (write ? "Connection interrupted. Check whether your change was saved before trying again." : "The connection is taking longer than expected. Please try again shortly.")
       : "The service returned an unreadable response. Please try again.");
   }
 }
@@ -56,7 +59,7 @@ export async function restoreSession() {
   if (restoring) return restoring;
   const version = generation;
   const request = (async () => {
-    const response = await fetch(`${API_BASE}/auth/session`, { credentials: "include", cache: "no-store" });
+    const response = await fetchWithRecovery(`${API_BASE}/auth/session`, { credentials: "include", cache: "no-store" }, API_BASE + "/health/ready", () => generation === version);
     const data = await readResponse(response);
     if (!response.ok) throw new Error(data.message || "Unable to restore your session. Please try again.");
     checkSessionResponse(data, true);
@@ -72,10 +75,15 @@ export async function api(path, options = {}) {
   const method = (options.method || "GET").toUpperCase();
   const write = !["GET", "HEAD", "OPTIONS"].includes(method);
   const publicAction = ["/auth/login", "/auth/register", "/auth/forgot-password", "/auth/reset-password", "/account/email/confirm", "/support", "/support/status"].includes(path);
+  const beforeRecovery = generation;
+  if (write) {
+    await waitForActiveRecovery();
+    if (generation !== beforeRecovery || loginAttempt !== loginSequence) throw new Error("Your account changed. Review this action and try again.");
+  }
   if (write && !publicAction && !csrfToken) await restoreSession();
   const requestGeneration = generation;
   const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
-  const response = await fetch(`${API_BASE}${path}`, {
+  const response = await fetchWithRecovery(`${API_BASE}${path}`, {
     ...options,
     credentials: "include",
     headers: {
@@ -83,8 +91,8 @@ export async function api(path, options = {}) {
       ...(write ? { "X-FreelanceChain-Request": "1", ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}) } : {}),
       ...options.headers,
     },
-  });
-  const data = await readResponse(response);
+  }, API_BASE + "/health/ready", () => generation === requestGeneration);
+  const data = await readResponse(response, write);
   if (!response.ok) {
     if (response.status === 401 && sessionUser && generation === requestGeneration) {
       expireSession(requestGeneration);

@@ -1,4 +1,5 @@
 import SessionBoundary from "./components/SessionBoundary";
+import ServiceConnectionNotice from "./components/ServiceConnectionNotice";
 import Support from "./pages/Support";
 import ServicePolicies from "./pages/ServicePolicies";
 import AdminSupport from "./pages/AdminSupport";
@@ -51,6 +52,7 @@ import "./TaskBoard.css";
 function App() {
   return (
     <Router>
+      <ServiceConnectionNotice />
       <SessionBoundary><Routes>
         <Route path="/terms" element={<ServicePolicies />} />
         <Route path="/privacy" element={<ServicePolicies privacy />} />

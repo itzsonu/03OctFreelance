@@ -65,7 +65,7 @@ test("temporary proxy errors preserve sign-in and do not replay a write", async 
   global.fetch.mockResolvedValueOnce(response({ user, csrfToken: "csrf-one" }));
   await client.restoreSession();
   global.fetch.mockResolvedValueOnce({ ok: false, status: 503, json: async () => { throw new SyntaxError("HTML response"); } });
-  await expect(client.api("/project-drafts", { method: "POST", body: "{}" })).rejects.toThrow("temporarily unavailable");
+  await expect(client.api("/project-drafts", { method: "POST", body: "{}" })).rejects.toThrow("Connection interrupted");
   expect(client.currentUser()).toEqual(user);
   expect(global.fetch).toHaveBeenCalledTimes(2);
 });
@@ -99,4 +99,22 @@ test("a stale session restore cannot overwrite a switch from another tab", async
   finishOld(response({ user, csrfToken: "old" }));
   await old;
   expect(client.currentUser()).toEqual(switched);
+});
+
+
+test("session restoration recovers from a cold proxy without logging the user out", async () => {
+  global.fetch.mockResolvedValueOnce(response({},503)).mockResolvedValueOnce(response({status:"ready"})).mockResolvedValueOnce(response({user,csrfToken:"restored"}));
+  await expect(client.restoreSession()).resolves.toEqual(user);
+  expect(client.currentUser()).toEqual(user);
+  expect(global.fetch.mock.calls.filter(([url])=>url.endsWith("/health/ready"))).toHaveLength(1);
+});
+
+test("a write waits for active warm-up and is sent only once afterwards", async () => {
+  global.fetch.mockResolvedValueOnce(response({user,csrfToken:"csrf-one"}));await client.restoreSession();
+  let finish;
+  global.fetch.mockImplementation(url=>url.endsWith("/health/ready")?new Promise(resolve=>{finish=resolve;}):Promise.resolve(response({message:"Saved"})));
+  const warming=client.warmService(); const write=client.api("/project-drafts",{method:"POST",body:"{}"});
+  await Promise.resolve();expect(global.fetch.mock.calls.filter(([url])=>url.endsWith("/project-drafts"))).toHaveLength(0);
+  finish(response({status:"ready"}));await warming;await write;
+  expect(global.fetch.mock.calls.filter(([url])=>url.endsWith("/project-drafts"))).toHaveLength(1);
 });
