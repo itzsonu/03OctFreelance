@@ -20,7 +20,8 @@
     "test:recovery": "node --test deploymentRecovery.test.js",
     "backup": "node scripts/recovery.js backup",
     "restore": "node scripts/recovery.js restore",
-    "health:check": "node scripts/checkHealth.js"
+    "health:check": "node scripts/checkHealth.js",
+    "test:launch": "node scripts/verifyLaunch.js"
   },
   "keywords": [],
   "author": "",

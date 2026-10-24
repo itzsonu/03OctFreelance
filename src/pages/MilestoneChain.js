@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { api, currentUser } from "../api";
 import DeliveryOutlook from "../components/DeliveryOutlook";
 import CheckIcon from "../components/CheckIcon";
+import { todayISO } from "../projectDates";
 import ReviewPanel from "../components/ReviewPanel";
 import NotificationCenter from "../components/NotificationCenter";
 import useLiveUpdates from "../useLiveUpdates";
@@ -55,7 +56,7 @@ export default function MilestoneChain() {
         body.append("submittedWork", submittedWork.trim());
         submissionFiles.forEach(file => body.append("files", file));
       } else if (kind === "submit") body = JSON.stringify({ submittedWork: submittedWork.trim() });
-      else if (kind === "request-revision") body = JSON.stringify({ feedback: feedback.trim() });
+      else if (kind === "request-revision") body = JSON.stringify({ feedback: feedback.trim(), submissionId: String(milestone.submissions?.at(-1)?._id || "") });
       else if (kind === "approve") body = JSON.stringify({ submissionId: String(milestone.submissions?.at(-1)?._id || "") });
       await api(`/projects/${projectId}/milestone/${milestone._id}/${kind}`, { method: "POST", ...(body ? { body } : {}) });
       setSubmittedWork(""); setSubmissionFiles([]); setFeedback("");
@@ -87,7 +88,7 @@ export default function MilestoneChain() {
         {project.insights && ["urgent", "attention"].includes(project.insights.level) && <div className={`pulse-strip pulse-${project.insights.level}`}><strong>{project.insights.level === "urgent" ? "Deadline needs action" : "Project needs attention"}</strong><span>{project.insights.reasons.join(" ")}</span></div>}
         {project.status === "In Progress" && project.outlook && <section className="outlook-detail" aria-label="Delivery outlook"><div><p className="eyebrow">DELIVERY OUTLOOK</p><p>A rough estimate from approved milestone timing and recorded activity. This is not an AI prediction or a guarantee.</p></div><DeliveryOutlook project={project} /></section>}
         <div className="milestone-layout">
-          <section className="panel"><div className="panel-heading"><div><p className="eyebrow">THE PLAN</p><h2>Milestone journey</h2></div></div><div className="timeline">{milestones.map((item, index) => <button key={item._id} className={`timeline-step ${item.status} ${selectedId === item._id ? "selected" : ""}`} onClick={() => { setSelectedId(item._id); setSubmittedWork(""); setSubmissionFiles([]); setFeedback(""); }}><span className="timeline-track"><span className="timeline-number">{item.status === "completed" ? <CheckIcon /> : String(index + 1).padStart(2, "0")}</span></span><span className="timeline-content"><span className="timeline-title">{item.title}</span><small>{item.description || "No description provided"}</small><span className="timeline-meta">{money(item.payment)} planned{item.dueDate ? ` · Due ${item.dueDate}` : ""} · {labels[item.status] || item.status}</span></span><span className="timeline-arrow">↗</span></button>)}</div></section>
+          <section className="panel"><div className="panel-heading"><div><p className="eyebrow">THE PLAN</p><h2>Milestone journey</h2></div></div><div className="timeline">{milestones.map((item, index) => <button key={item._id} className={`timeline-step ${item.status} ${selectedId === item._id ? "selected" : ""}`} onClick={() => { setSelectedId(item._id); setSubmittedWork(""); setSubmissionFiles([]); setFeedback(""); }}><span className="timeline-track"><span className="timeline-number">{item.status === "completed" ? <CheckIcon /> : String(index + 1).padStart(2, "0")}</span></span><span className="timeline-content"><span className="timeline-title">{item.title}</span><small>{item.description || "No description provided"}</small><span className="timeline-meta">{money(item.payment)} planned{item.dueDate ? ` · Due ${item.dueDate}` : ""} · {labels[item.status] || item.status}{item.status !== "completed" && item.dueDate && item.dueDate < todayISO() ? " · Past target date" : ""}</span></span><span className="timeline-arrow">↗</span></button>)}</div></section>
           <aside className="panel milestone-detail"><p className="eyebrow">STEP DETAILS</p>{selected ? <>
             <div className="detail-heading"><span className={`detail-icon ${selected.status}`}>{selected.status === "completed" ? <CheckIcon /> : "✦"}</span><span className={`status status-${selected.status}`}>{labels[selected.status]}</span></div>
             <h2>{selected.title}</h2><p>{selected.description || "No description provided for this milestone."}</p>

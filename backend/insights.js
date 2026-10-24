@@ -31,11 +31,16 @@ function projectInsights(project, now = new Date()) {
 
   const reasons = [];
   let level = "on_track";
+  const lateMilestones = milestones.filter(item => item.status !== "completed" && /^\d{4}-\d{2}-\d{2}$/.test(item.dueDate || "") && new Date(`${item.dueDate}T00:00:00.000Z`).getTime() < todayDay);
+  if (lateMilestones.length) {
+    level = "urgent";
+    reasons.push(`${lateMilestones.length} unapproved milestone${lateMilestones.length === 1 ? " is" : "s are"} past the target date. Review the delivery or agree an updated schedule.`);
+  }
   if (daysRemaining !== null && daysRemaining < 0) {
     level = "urgent";
     reasons.push(`Deadline passed ${Math.abs(daysRemaining)} day${Math.abs(daysRemaining) === 1 ? "" : "s"} ago.`);
   } else if (daysRemaining !== null && daysRemaining <= 7) {
-    level = "attention";
+    if (level !== "urgent") level = "attention";
     reasons.push(daysRemaining === 0 ? "Deadline is today." : `${daysRemaining} day${daysRemaining === 1 ? "" : "s"} until the deadline.`);
   }
 

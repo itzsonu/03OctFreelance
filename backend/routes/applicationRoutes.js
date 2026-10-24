@@ -15,6 +15,8 @@ const { todayISO, validDate, validateSchedule } = require("../projectDates");
 const { pagination, listResponse } = require("../pagination");
 const { hiringAvailable } = require("../moderation");
 
+const { sampleComparison, createDemoRunner } = require("../aiComparisonDemo");
+const compareSample = createDemoRunner();
 const router = express.Router();
 
 const isValidId = (value) => mongoose.Types.ObjectId.isValid(value);
@@ -187,6 +189,19 @@ router.get("/mine", protect, allowRoles("freelancer"), async (req, res) => {
 
 router.get("/ai-status", protect, allowRoles("client"), (req, res) => {
   res.json({ ...aiStatus(), maxCandidates: MAX_CANDIDATES });
+});
+
+router.get("/ai-demo", protect, allowRoles("client"), (req, res) => {
+  res.json({ ...sampleComparison(), ...aiStatus() });
+});
+
+router.post("/ai-demo", protect, allowRoles("client"), async (req, res) => {
+  if (Object.keys(req.body || {}).length) return res.status(400).json({ message: "The demo accepts only its fixed sample profiles" });
+  if (!aiMatchingAvailable()) return res.status(503).json({ message: "AI is not configured. Regular sample scores remain available." });
+  try { res.json(await compareSample()); }
+  catch (error) {
+    res.status(error.aiProviderFailure ? error.status : 502).json({ message: error.aiProviderFailure ? error.message : "AI comparison could not finish. Regular sample scores remain available." });
+  }
 });
 
 router.get(

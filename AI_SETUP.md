@@ -25,3 +25,12 @@ Milestone drafting uses the existing `gpt-4o-mini` default, or `OPENAI_PLAN_MODE
 ## Completion boundary
 
 Phase 1 implementation is skill extraction with editable, evidence-backed client review. Phase 2 implementation supplies optional AI flows, validation, fallback and a safe activation checker. Live AI activation remains unverified until a real key is configured and both live checks pass. Mocked tests verify integration behaviour; they do not establish live model quality. Independent dataset evaluation and the final capstone evidence remain later phases.
+
+
+## Three-applicant sample demo
+
+On the Client dashboard, open **Open sample demo**, review the fictional writing brief and three authored profiles, then choose **Compare sample profiles with AI**. Opening the samples uses regular scoring only; comparing makes one embedding batch for the brief plus all three profiles. The panel shows AI rank, text similarity, regular fit and the 60/40 calculation. Real applicants and the client's project text are not sent by this sample demo. No users, applications, work history or offers are created.
+
+The sample result is cached in server memory for 10 minutes and concurrent requests share the same batch. Failed requests have a one-minute cooldown. Restarting the service clears this cache. Missing credentials, provider quota failures and invalid output leave regular scores available without fabricating an AI result or switching providers. Google free-tier disclosure remains visible. These authored samples demonstrate behavior; they do not establish real-world accuracy.
+
+Focused workflow check: run **npm run test:launch** in backend. It starts an isolated local MongoDB, creates only a randomly named test database and drops that database afterward. Requires mongod (or FC_TEST_MONGOD pointing to its executable); TEST_MONGO_BASE can point to an existing local test instance. It covers proposal withdrawal/offer decline, stale acceptance, revision history, stale submission review, dependency unlocking and participant authorization. No hosted database or real users are used.

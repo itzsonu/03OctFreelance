@@ -478,6 +478,7 @@ router.post(
       }
       const latestSubmission = milestone.submissions[milestone.submissions.length - 1];
       if (!latestSubmission || (milestone.currentSubmission && milestone.currentSubmission.toString() !== latestSubmission._id.toString())) return res.status(409).json({ message: "The latest submitted version must be reviewed" });
+      if (req.body?.submissionId && req.body.submissionId !== latestSubmission._id.toString()) return res.status(409).json({ message: "The submission changed. Review the latest version before requesting changes." });
       milestone.currentSubmission = latestSubmission._id;
       milestone.status = "revision_requested";
       milestone.revisionFeedback = feedback;
