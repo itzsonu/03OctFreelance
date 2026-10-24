@@ -1,11 +1,22 @@
 const fs = require("node:fs/promises");
 const { storageRoot, storageBackend } = require("./fileStorage");
+function databaseUriWithPassword(uri, password) {
+  let address;
+  try { address = new URL(uri); } catch { throw new Error("Use a valid MongoDB address with a username and application database"); }
+  if (!["mongodb:", "mongodb+srv:"].includes(address.protocol) || !address.hostname || !address.username || address.password || address.hash) throw new Error("Separate database password requires a username-only MongoDB address");
+  if (typeof password !== "string" || !password) throw new Error("MONGO_PASSWORD is required when using a separate database password");
+  require("./recovery").namedDatabase(uri);
+  let username;
+  try { username = decodeURIComponent(address.username); } catch { throw new Error("Database username encoding is invalid"); }
+  return address.protocol + "//" + encodeURIComponent(username) + ":" + encodeURIComponent(password) + "@" + address.host + address.pathname + address.search;
+}
 async function loadSecrets() {
-  for (const name of ["MONGO_URI", "JWT_SECRET", "RESTORE_MONGO_URI"]) {
+  for (const name of ["MONGO_URI", "MONGO_PASSWORD", "JWT_SECRET", "RESTORE_MONGO_URI"]) {
     if (!process.env[`${name}_FILE`]) continue;
     if (process.env[name]) throw new Error(`Configure only ${name} or ${name}_FILE`);
     process.env[name] = (await fs.readFile(process.env[`${name}_FILE`], "utf8")).trim();
   }
+  if (process.env.MONGO_PASSWORD !== undefined) process.env.MONGO_URI = databaseUriWithPassword(process.env.MONGO_URI, process.env.MONGO_PASSWORD);
 }
 async function checkPrivateStorage() {
   if (storageBackend() === "mongo") return require("./mongoFileStorage").check();
@@ -32,4 +43,4 @@ function config() {
   require("./attachmentStorage").limits();
   return { port, host: process.env.HOST || "0.0.0.0" };
 }
-module.exports = { loadSecrets, config, checkPrivateStorage };
+module.exports = { loadSecrets, config, checkPrivateStorage, databaseUriWithPassword };
