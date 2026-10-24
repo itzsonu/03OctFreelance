@@ -12,7 +12,7 @@ const plan = { milestones: [{ title: 'Outline', description: 'Agree the article 
 const applicants = [{ _id: 'synthetic-writer', proposal: 'Write the article.', freelancer: { profile: { skills: ['Technical Writing'] } }, match: { score: 70 } }, { _id: 'synthetic-developer', proposal: 'Build a server.', freelancer: { profile: { skills: ['Node.js'] } }, match: { score: 70 } }];
 test('Gemini status exposes provider disclosure and models, never keys or paid fallback', () => {
   assert.equal(aiStatus().providerName, 'Google Gemini'); assert.equal(aiStatus().available, true);
-  assert.equal(aiStatus().planningModel, 'gemini-2.5-flash-lite'); assert.equal(aiStatus().matchingModel, 'gemini-embedding-2');
+  assert.equal(aiStatus().planningModel, 'gemini-3.5-flash-lite'); assert.equal(aiStatus().matchingModel, 'gemini-embedding-2');
   assert.match(aiStatus().dataNotice, /free-tier/); assert.doesNotMatch(JSON.stringify(aiStatus()), /synthetic-key|unused-openai-key/);
   delete process.env.GEMINI_API_KEY; assert.equal(aiStatus().available, false); assert.equal(aiConfig().provider, 'gemini');
   process.env.AI_PROVIDER='unknown'; assert.equal(aiStatus().available, false);
@@ -20,7 +20,7 @@ test('Gemini status exposes provider disclosure and models, never keys or paid f
 test('Gemini planner sends category-aware structured output request and cent-exact reviewable draft', async () => {
   let calls=0;
   const result=await generateAiMilestones(project,{fetchImpl:async (url, options)=>{
-    calls++; assert.match(url, /gemini-2.5-flash-lite:generateContent$/); assert.equal(url.includes('key='), false);
+    calls++; assert.match(url, /gemini-3.5-flash-lite:generateContent$/); assert.equal(url.includes('key='), false);
     assert.equal(options.headers['x-goog-api-key'],'synthetic-key'); const body=JSON.parse(options.body);
     assert.equal(body.generationConfig.responseMimeType,'application/json'); assert.equal(body.generationConfig.responseJsonSchema.additionalProperties,false);
     assert.equal(JSON.parse(body.contents[0].parts[0].text).category,'Writing & Translation');
