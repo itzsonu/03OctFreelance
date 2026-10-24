@@ -4,7 +4,7 @@ const MAX_CANDIDATES = 20;
 const aiMatchingAvailable = () => Boolean(process.env.OPENAI_API_KEY?.trim());
 
 function projectText(project) {
-  return `Project: ${project.title || ""}\nRequired skills: ${(project.requiredSkills || []).join(", ")}\nBrief: ${project.description || ""}`.slice(0, 4000);
+  return `Project: ${project.title || ""}\nCategory: ${project.category || "Unspecified"}${project.category === "Other" && project.customCategory ? ` — ${project.customCategory}` : ""}\nRequired skills: ${(project.requiredSkills || []).join(", ")}\nBrief: ${project.description || ""}`.slice(0, 4000);
 }
 
 function applicantText(application) {

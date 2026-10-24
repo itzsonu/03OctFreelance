@@ -65,3 +65,14 @@ test("malformed or failed embedding responses cannot become a ranking", async ()
     assert.equal(calls, 0);
   } finally { if (prior === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = prior; }
 });
+
+test("project field distinguishes writing and software briefs, including Other", () => {
+  const subject = { title: "React API guide", description: "Create a guide explaining the React dashboard API.", requiredSkills: ["React", "Node.js"] };
+  const writing = projectText({ ...subject, category: "Writing & Translation" });
+  const software = projectText({ ...subject, category: "Web Development" });
+  assert.notEqual(writing, software);
+  assert.match(writing, /Category: Writing & Translation/);
+  assert.match(software, /Category: Web Development/);
+  assert.match(projectText({ ...subject, category: "Other", customCategory: "Technical writing" }), /Category: Other — Technical writing/);
+  assert.doesNotMatch(projectText({ ...subject, category: "Web Development", customCategory: "Stale writing field" }), /Stale writing field/);
+});

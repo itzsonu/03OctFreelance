@@ -200,7 +200,7 @@ router.get(
         return res.status(400).json({ message: "Invalid project ID" });
       }
 
-      const project = await Project.findById(projectId).select("client title description requiredSkills budget");
+      const project = await Project.findById(projectId).select("client title description category customCategory requiredSkills budget");
 
       if (!project) {
         return res.status(404).json({ message: "Project not found" });
@@ -226,7 +226,7 @@ router.get(
 router.post("/project/:projectId/ai-rank", protect, allowRoles("client"), async (req, res) => {
   try {
     if (!isValidId(req.params.projectId)) return res.status(400).json({ message: "Invalid project ID" });
-    const project = await Project.findById(req.params.projectId).select("client title description requiredSkills budget status moderationHidden");
+    const project = await Project.findById(req.params.projectId).select("client title description category customCategory requiredSkills budget status moderationHidden");
     if (!project) return res.status(404).json({ message: "Project not found" });
     if (project.client.toString() !== req.user._id.toString()) return res.status(403).json({ message: "Access denied" });
     if (project.status !== "Open" || !await hiringAvailable(project)) return res.status(409).json({ message: "AI analysis is available while hiring is open" });
