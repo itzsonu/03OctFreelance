@@ -6,6 +6,7 @@ const Invitation = require("../models/Invitation");
 const { protect, allowRoles } = require("../middleware/authMiddleware");
 const { trustFromProjects, matchApplicant } = require("../scoring");
 const { aiMatchingAvailable, MAX_CANDIDATES, rankApplicants } = require("../semanticMatching");
+const { aiStatus } = require("../aiProvider");
 const { publishUser, publishProject, publishMarketplace } = require("../liveUpdates");
 const { notifyUser } = require("../notifications");
 const { toCents } = require("../money");
@@ -185,7 +186,7 @@ router.get("/mine", protect, allowRoles("freelancer"), async (req, res) => {
 });
 
 router.get("/ai-status", protect, allowRoles("client"), (req, res) => {
-  res.json({ available: aiMatchingAvailable(), maxCandidates: MAX_CANDIDATES });
+  res.json({ ...aiStatus(), maxCandidates: MAX_CANDIDATES });
 });
 
 router.get(

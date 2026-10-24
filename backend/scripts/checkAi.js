@@ -1,12 +1,14 @@
 const path = require("node:path");
 require("dotenv").config({ path: path.join(__dirname, "..", ".env"), quiet: true });
 const { generateAiMilestones } = require("../aiPlanner");
-const { rankApplicants, MODEL, aiMatchingAvailable } = require("../semanticMatching");
+const { rankApplicants } = require("../semanticMatching");
+const { aiStatus } = require("../aiProvider");
 
 async function checkAi({ live = false, fetchImpl = global.fetch } = {}) {
-  const status = { configured: aiMatchingAvailable(), liveRequested: live, planningModel: process.env.OPENAI_PLAN_MODEL || "gpt-4o-mini", matchingModel: MODEL };
+  const config = aiStatus();
+  const status = { configured: config.available, provider: config.provider, liveRequested: live, planningModel: config.planningModel, matchingModel: config.matchingModel };
   if (!live) return { ...status, liveVerified: false, message: "Configuration check only; no API calls made. Use --live for two requests with synthetic data." };
-  if (!status.configured) return { ...status, liveVerified: false, message: "Set OPENAI_API_KEY privately in backend/.env first. Guided planning and regular matching remain available." };
+  if (!status.configured) return { ...status, liveVerified: false, message: "Set GEMINI_API_KEY with AI_PROVIDER=gemini, or OPENAI_API_KEY with AI_PROVIDER=openai, privately in backend/.env first. Guided planning and regular matching remain available." };
   const project = { title: "Synthetic dashboard demo", description: "Build a responsive React dashboard showing synthetic weekly totals with a documented API.", category: "Web Development", requiredSkills: ["React", "Node.js"], budget: 1000, deadline: "2099-12-31" };
   // No database connection or user records; each feature is attempted once, with no retries.
   const result = { ...status, planningVerified: false, matchingVerified: false };

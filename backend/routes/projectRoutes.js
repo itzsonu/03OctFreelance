@@ -11,6 +11,7 @@ const { projectOutlook } = require("../outlook");
 const { suggestMilestones } = require("../planner");
 const { suggestSkills } = require("../skillSuggestions");
 const { generateAiMilestones, validatePlanInput } = require("../aiPlanner");
+const { aiStatus } = require("../aiProvider");
 const { publishProject, publishMarketplace } = require("../liveUpdates");
 const { notifyUser } = require("../notifications");
 const { parseFiles } = require("../fileStorage");
@@ -161,7 +162,7 @@ router.post("/suggest-skills", protect, allowRoles("client"), (req, res) => {
 });
 
 router.get("/ai-planning-status", protect, allowRoles("client"), (req, res) => {
-  res.json({ available: Boolean(process.env.OPENAI_API_KEY?.trim()) });
+  res.json(aiStatus());
 });
 
 router.post("/ai-suggest-milestones", protect, allowRoles("client"), async (req, res) => {
@@ -170,7 +171,7 @@ router.post("/ai-suggest-milestones", protect, allowRoles("client"), async (req,
   } catch (error) {
     return res.status(400).json({ message: error.message });
   }
-  if (!process.env.OPENAI_API_KEY?.trim()) return res.status(503).json({ message: "AI planning is not configured. Use the guided draft instead." });
+  if (!aiStatus().available) return res.status(503).json({ message: "AI planning is not configured. Use the guided draft instead." });
   const userId = String(req.user._id);
   const now = Date.now();
   if ((aiPlanCooldown.get(userId) || 0) > now) return res.status(429).json({ message: "Please wait a minute before requesting another AI draft." });

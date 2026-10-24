@@ -1,7 +1,8 @@
+const { aiConfig } = require("./aiProvider");
 const MODEL = "text-embedding-3-small";
 const MAX_CANDIDATES = 20;
 
-const aiMatchingAvailable = () => Boolean(process.env.OPENAI_API_KEY?.trim());
+const aiMatchingAvailable = () => Boolean(aiConfig().apiKey);
 
 function projectText(project) {
   return `Project: ${project.title || ""}\nCategory: ${project.category || "Unspecified"}${project.category === "Other" && project.customCategory ? ` — ${project.customCategory}` : ""}\nRequired skills: ${(project.requiredSkills || []).join(", ")}\nBrief: ${project.description || ""}`.slice(0, 4000);
@@ -34,10 +35,21 @@ function cosineSimilarity(left, right) {
 }
 
 async function embedTexts(texts, fetchImpl = fetch) {
-  if (!aiMatchingAvailable()) throw new Error("AI matching is not configured");
+  const config = aiConfig();
+  if (!config.apiKey) throw new Error("AI matching is not configured");
+  if (config.provider === "gemini") {
+    const response = await fetchImpl("https://generativelanguage.googleapis.com/v1beta/models/" + config.matchingModel + ":batchEmbedContents", {
+      method: "POST", headers: { "x-goog-api-key": config.apiKey, "Content-Type": "application/json" }, signal: AbortSignal.timeout(20000),
+      body: JSON.stringify({ requests: texts.map(text => ({ model: "models/" + config.matchingModel, content: { parts: [{ text }] }, outputDimensionality: 768 })) }),
+    });
+    if (!response.ok) throw new Error("Embedding service is unavailable");
+    const body = await response.json();
+    if (!Array.isArray(body.embeddings) || body.embeddings.length !== texts.length || body.embeddings.some(item => !Array.isArray(item?.values))) throw new Error("Embedding response is incomplete");
+    return body.embeddings.map(item => item.values);
+  }
   const response = await fetchImpl("https://api.openai.com/v1/embeddings", {
     method: "POST",
-    headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY.trim()}`, "Content-Type": "application/json" },
+    headers: { Authorization: `Bearer ${config.apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({ model: MODEL, input: texts, encoding_format: "float" }),
     signal: AbortSignal.timeout(20000),
   });
@@ -81,7 +93,8 @@ async function rankApplicants(project, applications, fetchImpl = fetch) {
   }).sort((a, b) => b.score - a.score || a.applicationId.localeCompare(b.applicationId));
   return {
     method: "embedding_cosine_v1",
-    model: MODEL,
+    provider: aiConfig().provider,
+    model: aiConfig().matchingModel,
     explanation: "Ranking aid: 60% text similarity and 40% explainable regular fit across required skills, profile-led project context, self-reported experience and verified work. Scores are not hiring probabilities or decisions. Review the full proposal before deciding.",
     ranking: ranking.map((item, index) => ({ rank: index + 1, ...item })),
   };

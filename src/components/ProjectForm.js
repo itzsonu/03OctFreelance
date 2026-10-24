@@ -23,7 +23,8 @@ export default function ProjectForm({ onClose, onCreated, onSaved, initialProjec
   const [busy, setBusy] = useState(false);
   const [suggesting, setSuggesting] = useState(false);
   const [preview, setPreview] = useState(null);
-  const [aiAvailable, setAiAvailable] = useState(false);
+  const [aiStatus, setAiStatus] = useState(null);
+  const aiAvailable = Boolean(aiStatus?.available);
   const requestVersion = useRef(0);
   const skillVersion = useRef(0);
   const [skillPreview, setSkillPreview] = useState(null);
@@ -51,7 +52,7 @@ export default function ProjectForm({ onClose, onCreated, onSaved, initialProjec
 
   useEffect(() => {
     let active = true;
-    api("/projects/ai-planning-status").then(result => { if (active) setAiAvailable(Boolean(result.available)); }).catch(() => {});
+    api("/projects/ai-planning-status").then(result => { if (active) setAiStatus(result); }).catch(() => {});
     return () => { active = false; requestVersion.current += 1; skillVersion.current += 1; };
   }, []);
 
@@ -198,7 +199,7 @@ export default function ProjectForm({ onClose, onCreated, onSaved, initialProjec
         </div>
         <div className="form-row"><label>Budget (₹)<input required type="number" step="0.01" min="1" value={form.budget} onChange={event => updateProject("budget", event.target.value)} /></label><label>Deadline<input required type="date" min={todayISO()} value={form.deadline} onChange={event => updateProject("deadline", event.target.value)} /></label></div>
         <div className="milestone-form-header"><div><strong>Milestones</strong><small>Choose which earlier steps must be approved before a step unlocks.</small></div><div className="plan-actions"><button className="text-button" type="button" disabled={suggesting || !categoryReady || form.description.trim().length < 30 || !parseSkills(form.requiredSkills).length || Number(form.budget) <= 0} onClick={() => suggestPlan("guided")}>{suggesting ? "Planning…" : "Suggest a plan"}</button><button className="text-button" type="button" disabled={suggesting || !categoryReady || !aiAvailable || !form.title.trim() || form.description.trim().length < 30 || !parseSkills(form.requiredSkills).length || Number(form.budget) < 1} onClick={() => suggestPlan("ai")}>Draft with AI</button><button className="text-button" type="button" disabled={form.milestones.length >= 20} onClick={() => setForm(current => ({ ...current, milestones: [...current.milestones, freshStep(current.milestones.length)] }))}>+ Add step</button></div></div>
-        <p className="ai-plan-note">{aiAvailable ? "Optional: Draft with AI sends your project title, brief, skills, budget, deadline and project category/field to OpenAI only when you click. Remove personal information first. Review the draft before using it." : "AI draft is unavailable in this demo. The guided draft works without an AI key."}</p>
+        <p className="ai-plan-note">{aiAvailable ? `Optional: Draft with AI sends your project title, brief, skills, budget, deadline and project category/field to ${aiStatus?.providerName || "OpenAI"} only when you click. Remove personal information first. ${aiStatus?.dataNotice || ""} Review the draft before using it.` : "AI draft is unavailable in this demo. The guided draft works without an AI key."}</p>
         {aiPlanFailed && <div className="message" role="status"><p>Your milestones are unchanged. You can use the guided draft while AI is unavailable.</p><button className="button button-outline" type="button" disabled={suggesting} onClick={() => suggestPlan("guided")}>Use guided fallback</button></div>}
         {preview && preview.signature === planSignature(form) && <div className="plan-preview" role="region" aria-label="Suggested milestone plan"><div><strong>{preview.method === "ai_assisted" ? "AI-assisted draft" : "Guided draft"}</strong><p>{preview.explanation}</p></div><ol>{preview.suggestions.map((step, index) => <li key={index}><strong>{step.title}</strong><span>₹{Number(step.payment).toLocaleString("en-IN")} planned</span><small>{step.description}</small><small>{step.dependsOn.length ? `After step${step.dependsOn.length > 1 ? "s" : ""} ${step.dependsOn.map(number => number + 1).join(" and ")}` : "Available from the start"}</small></li>)}</ol><button className="button button-outline" type="button" onClick={useSuggestedPlan}>Use this draft for milestones</button><p>This replaces the current milestone plan. You can edit every step before publishing.</p></div>}
         {form.milestones.map((step, index) => <div className="milestone-input" key={index}>
