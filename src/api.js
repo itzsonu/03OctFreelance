@@ -145,56 +145,96 @@ export async function downloadCaseAttachment(caseId, attachment) {
   window.URL.revokeObjectURL(objectUrl);
 }
 
+const updateListeners = new Set();
+let stopSharedUpdates = null;
+let sharedUpdateState = null;
+
 export function subscribeUpdates(onEvent) {
+  const listener = event => onEvent(event);
+  updateListeners.add(listener);
+  if (!stopSharedUpdates) {
+    stopSharedUpdates = openUpdateStream(event => {
+      if (["connected", "disconnected"].includes(event.type)) sharedUpdateState = event;
+      for (const receive of [...updateListeners]) {
+        if (!updateListeners.has(receive)) continue;
+        try { receive(event); } catch { /* One view must not break the shared stream. */ }
+      }
+    });
+  } else if (sharedUpdateState) listener(sharedUpdateState);
+  return () => {
+    updateListeners.delete(listener);
+    if (!updateListeners.size) {
+      stopSharedUpdates?.();
+      stopSharedUpdates = null;
+      sharedUpdateState = null;
+    }
+  };
+}
+
+function openUpdateStream(onEvent) {
   let stopped = false;
   let controller;
   let retryTimer;
+  let idleTimer;
   let connectedBefore = false;
+  let failures = 0;
 
   async function connect() {
     if (stopped) return;
     let requestGeneration = generation;
     controller = new AbortController();
+    let reader;
+    let receivedReady = false;
+    const refreshIdle = () => { clearTimeout(idleTimer); idleTimer = setTimeout(() => controller.abort(), 45000); };
     try {
       if (!await restoreSession() || stopped) return;
       requestGeneration = generation;
-      const response = await fetch(`${API_BASE}/updates`, {
-        headers: { Accept: "text/event-stream" },
-        credentials: "include",
-        cache: "no-store",
-        signal: controller.signal,
+      refreshIdle();
+      const response = await fetch(API_BASE + "/updates", {
+        headers: { Accept: "text/event-stream" }, credentials: "include", cache: "no-store", signal: controller.signal,
       });
+      if (stopped || requestGeneration !== generation) return;
       if (response.status === 401) {
         expireSession(requestGeneration);
         stopped = true;
         return;
       }
-      if (!response.ok || !response.body?.getReader) throw new Error("Live updates unavailable");
-      onEvent({ type: "connected" });
-      if (connectedBefore) onEvent({ type: "reconnected" });
-      connectedBefore = true;
-      const reader = response.body.getReader();
+      if (!response.ok || !response.body?.getReader || !response.headers?.get("content-type")?.toLowerCase().startsWith("text/event-stream")) throw new Error("Live updates unavailable");
+      reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
       while (!stopped) {
         const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n");
+        if (stopped || requestGeneration !== generation || done) break;
+        refreshIdle();
+        buffer = (buffer + decoder.decode(value, { stream: true })).replace(/\r\n/g, "\n");
         let boundary;
         while ((boundary = buffer.indexOf("\n\n")) >= 0) {
           const frame = buffer.slice(0, boundary);
           buffer = buffer.slice(boundary + 2);
           const type = frame.split("\n").find(line => line.startsWith("event:"))?.slice(6).trim();
           const rawData = frame.split("\n").find(line => line.startsWith("data:"))?.slice(5).trim();
-          if (!["project", "applications", "marketplace", "messages", "notifications", "tasks"].includes(type) || !rawData) continue;
-          try { onEvent({ type, ...JSON.parse(rawData) }); } catch { /* ignore an invalid event */ }
+          if (type === "ready" && !receivedReady) {
+            receivedReady = true;
+            const needsRefresh = connectedBefore || failures > 0;
+            failures = 0;
+            onEvent({ type: "connected" });
+            if (needsRefresh) onEvent({ type: "reconnected" });
+            connectedBefore = true;
+            continue;
+          }
+          if (!receivedReady || !["project", "applications", "marketplace", "messages", "notifications", "tasks"].includes(type) || !rawData) continue;
+          try { onEvent({ type, ...JSON.parse(rawData) }); } catch { /* Ignore an invalid event. */ }
         }
         if (buffer.length > 16384) buffer = "";
       }
-    } catch { /* a temporary disconnect retries below */ }
-    if (!stopped) {
+    } catch { /* A temporary disconnect retries below. */ }
+    finally { clearTimeout(idleTimer); controller.abort(); reader?.releaseLock?.(); }
+    if (!stopped && requestGeneration === generation) {
       onEvent({ type: "disconnected" });
-      retryTimer = setTimeout(connect, 3000);
+      const delay = Math.min(30000, 3000 * 2 ** Math.min(failures, 4));
+      failures += 1;
+      retryTimer = setTimeout(connect, delay);
     }
   }
 
@@ -202,6 +242,7 @@ export function subscribeUpdates(onEvent) {
   return () => {
     stopped = true;
     clearTimeout(retryTimer);
+    clearTimeout(idleTimer);
     controller?.abort();
   };
 }
