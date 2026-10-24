@@ -9,8 +9,14 @@ function identity(value) {
 
 function subscribe(req, res) {
   const userId = identity(req.user);
-  if ([...connections].filter(client => client.userId === userId).length >= 5) {
-    return res.status(429).json({ message: "Too many live update connections" });
+  const ownConnections = [...connections].filter(client => client.userId === userId);
+  if (ownConnections.length >= 5) {
+    // A rewrite proxy may keep an abandoned upstream stream open after navigation.
+    // Reuse only this authenticated session's oldest slot; keep the per-user cap.
+    const oldest = req.authSession?.tokenHash && ownConnections.find(client => client.sessionHash === req.authSession.tokenHash);
+    if (!oldest) return res.status(429).json({ message: "Too many live update connections" });
+    connections.delete(oldest);
+    oldest.res.end();
   }
   res.status(200);
   res.set({
