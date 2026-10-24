@@ -34,6 +34,10 @@ async function start() {
 if (require.main === module) start().catch(error => {
   const knownTypes = ["MongoServerError", "MongoParseError", "MongoServerSelectionError", "MongooseServerSelectionError", "MongoNetworkError", "ValidationError", "Error"];
   const configReasons = {
+    "Use a valid MongoDB address with a username and application database": "database_address_invalid",
+    "Separate database password requires a username-only MongoDB address": "database_address_must_exclude_password",
+    "MONGO_PASSWORD is required when using a separate database password": "database_password_empty",
+    "Database username encoding is invalid": "database_username_encoding_invalid",
     "MONGO_URI or MONGO_URI_FILE is required": "database_uri_missing",
     "JWT_SECRET must contain at least 32 characters": "session_secret_too_short",
     "FC_PROXY_SECRET must contain 32–256 characters": "proxy_secret_invalid_length",
