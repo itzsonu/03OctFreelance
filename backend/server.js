@@ -1,14 +1,19 @@
 require("dotenv").config();
 const mongoose = require("mongoose");
 const deployment = require("./deployment");
+let startupStage = "configuration";
 async function start() {
   await deployment.loadSecrets();
   const settings = deployment.config();
+  startupStage = "database";
   await require("./db")();
+  startupStage = "private_storage";
   if (require("./fileStorage").storageBackend() === "mongo") await require("./mongoFileStorage").init();
   await deployment.checkPrivateStorage();
+  startupStage = "collections";
   await Promise.all([require("./models/Session").init(), require("./models/RateBucket").init(), require("./models/StorageUsage").init(), require("./models/SupportRequest").init()]);
   await Promise.all([require("./models/ProjectTask").init(), require("./models/Notification").init()]);
+  startupStage = "http";
   const app = require("./app");
   const stopWorker = require("./eventEmails").startEventEmailWorker();
   const stopTaskWorker = require("./taskReminders").startTaskReminderWorker();
@@ -26,8 +31,9 @@ async function start() {
   process.once("SIGINT", () => shutdown().catch(() => process.exit(1)));
   return { server, shutdown };
 }
-if (require.main === module) start().catch(() => {
-  console.error("Startup failed. Check database access, private storage and deployment configuration.");
+if (require.main === module) start().catch(error => {
+  const knownTypes = ["MongoServerError", "MongoParseError", "MongoServerSelectionError", "MongooseServerSelectionError", "MongoNetworkError", "ValidationError", "Error"];
+  console.error("Startup failed", JSON.stringify({ stage: startupStage, type: knownTypes.includes(error.name) ? error.name : "Error", code: Number.isInteger(error.code) ? error.code : null }));
   mongoose.disconnect().finally(() => { process.exitCode = 1; });
 });
 module.exports = { start };
