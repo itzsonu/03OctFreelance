@@ -48,6 +48,7 @@ import "./Typography.css";
 import "./ProposalExperience.css";
 import "./ColdStart.css";
 import "./TaskBoard.css";
+import "./ResponsivePolish.css";
 
 function App() {
   return (

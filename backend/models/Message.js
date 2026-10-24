@@ -10,5 +10,6 @@ const messageSchema = new mongoose.Schema({
 
 messageSchema.index({ application: 1, createdAt: -1 });
 messageSchema.index({ application: 1, createdAt: -1, _id: -1 });
+messageSchema.index({ attachments: 1 });
 
 module.exports = mongoose.model("Message", messageSchema);

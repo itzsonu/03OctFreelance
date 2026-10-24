@@ -52,11 +52,29 @@ router.get("/inbox", async (req, res) => {
 router.get("/projects/:projectId/files/:fileId", async (req, res) => {
   try {
     if (!mongoose.Types.ObjectId.isValid(req.params.projectId) || !mongoose.Types.ObjectId.isValid(req.params.fileId)) return res.status(404).json({ message: "File not found" });
-    const project = await Project.findById(req.params.projectId).select("client freelancer").lean();
+    const project = await Project.findById(req.params.projectId).select("client freelancer milestones.submissions.files").lean();
     if (!project) return res.status(404).json({ message: "File not found" });
-    if (!await participant(project, req.user)) return res.status(403).json({ message: "Access denied" });
     const attachment = await Attachment.findOne({ _id: req.params.fileId, project: project._id }).select("+storageKey +storageBackend filename mimeType").lean();
-    if (!attachment) return res.status(404).json({ message: "File not found" });
+    if (!attachment) {
+      if (!await participant(project, req.user)) return res.status(403).json({ message: "Access denied" });
+      return res.status(404).json({ message: "File not found" });
+    }
+    // Existing conversation files inherit their actual application's access rules.
+    const message = await Message.findOne({ attachments: attachment._id }).select("application")
+      .populate({ path: "application", match: { project: project._id }, select: "freelancer status" }).lean();
+    if (message) {
+      const application = message.application;
+      if (!application) return res.status(404).json({ message: "File not found" });
+      const userId = String(req.user._id);
+      const freelancerId = String(application.freelancer);
+      if (userId !== String(project.client) && userId !== freelancerId) return res.status(403).json({ message: "Access denied" });
+      if (project.freelancer && (String(project.freelancer) !== freelancerId || application.status !== "ACCEPTED")) return res.status(403).json({ message: "Access denied" });
+    } else {
+      if (!await participant(project, req.user)) return res.status(403).json({ message: "Access denied" });
+      const milestoneFile = (project.milestones || []).some(milestone => (milestone.submissions || []).some(submission => (submission.files || []).some(id => String(id) === String(attachment._id))));
+      const caseFile = !milestoneFile && await Dispute.exists({ project: project._id, "history.attachments": attachment._id });
+      if (!milestoneFile && !caseFile) return res.status(404).json({ message: "File not found" });
+    }
     const bytes = await readFile(attachment.storageKey, attachment.storageBackend || "local");
     if (!bytes) return res.status(404).json({ message: "File not found" });
     const safeName = attachment.filename.replace(/[\r\n"\\]/g, "_");

@@ -1,0 +1,27 @@
+/* Shared form controls remain readable and tappable at narrow widths. */
+.stack-form select{width:100%;min-height:48px;min-width:0;border:1px solid var(--line);border-radius:10px;background:var(--white,#fff);padding:12px 13px;color:var(--ink);font:inherit;font-size:16px}
+.stack-form label,.form-row>*,.dialog-heading>div,.panel-heading>div,.application-top>div,.ai-result{min-width:0}
+.stack-form input,.stack-form textarea,.stack-form select{max-width:100%;box-sizing:border-box}
+.form-row{grid-template-columns:repeat(2,minmax(0,1fr))}
+.dialog-heading h2,.panel-heading h2,.timeline-title,.application-card p,.application-card small,.notification-item strong,.notification-item small,.message{overflow-wrap:anywhere}
+.dialog-actions,.application-actions,.plan-actions,.row-actions{flex-wrap:wrap}
+.dialog .icon-button{min-width:44px;min-height:44px;flex:none}
+.message{min-width:0;flex-wrap:wrap}
+.message>p{flex-basis:100%;margin:0}
+.project-form-dialog{display:flex;flex-direction:column;overflow:hidden}
+.project-form-dialog>.dialog-heading{flex:none;margin-bottom:18px}
+.project-form-dialog>.stack-form{min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:4px;scroll-padding-block:12px}
+.project-form-dialog>.message{display:block;flex:none;max-height:35dvh;overflow-y:auto}
+.project-form-dialog>.message strong{display:block;margin-bottom:6px}
+.project-form-dialog>.message .dialog-actions{margin-top:12px}
+.project-form-dialog .dialog-actions{padding:8px 0 2px}
+@media(max-width:640px){
+  .form-row{grid-template-columns:minmax(0,1fr)}
+  .dialog-heading h2,.applicants-dialog .dialog-heading h2{font-size:clamp(21px,5.7vw,26px);line-height:1.25}
+  .dialog-actions>.button,.application-actions>.button{flex:1 1 150px;min-height:44px;white-space:normal;text-align:center;justify-content:center}
+  .project-form-dialog .plan-actions{gap:10px}
+  .project-form-dialog .plan-actions>.text-button{min-height:44px;white-space:normal}
+  .project-form-dialog .dialog-actions>.button:last-child{flex-basis:100%}
+  .application-card .proposal-terms{flex-wrap:wrap;gap:12px}
+  .timeline-title{line-height:1.4}
+}
