@@ -180,7 +180,8 @@ router.post("/ai-suggest-milestones", protect, allowRoles("client"), async (req,
   try {
     res.json(await generateAiMilestones(req.body));
   } catch (error) {
-    res.status(502).json({ message: "AI planning is unavailable right now. Try again or use the guided draft." });
+    console.error("AI planning failed", error.aiProviderFailure ? "provider_response" : error.message?.includes("invalid milestone plan") ? "invalid_plan" : error.message?.includes("could not complete") ? "incomplete_plan" : error.message?.includes("usable plan") ? "empty_plan" : "network_or_response");
+    res.status(error.aiProviderFailure ? error.status : 502).json({ message: error.aiProviderFailure ? error.message : "AI planning is unavailable right now. Try again or use the guided draft." });
   }
 });
 

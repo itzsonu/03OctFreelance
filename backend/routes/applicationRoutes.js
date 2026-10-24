@@ -247,7 +247,7 @@ router.post("/project/:projectId/ai-rank", protect, allowRoles("client"), async 
     res.json(await rankApplicants(project, pending));
   } catch (error) {
     console.error("AI applicant analysis failed:", error.message);
-    res.status(502).json({ message: "AI analysis is unavailable right now. The regular shortlist is still available." });
+    res.status(error.aiProviderFailure ? error.status : 502).json({ message: error.aiProviderFailure ? error.message : "AI analysis is unavailable right now. The regular shortlist is still available." });
   }
 });
 

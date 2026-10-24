@@ -1,6 +1,6 @@
 const { toCents } = require("./money");
 const { validateSchedule } = require("./projectDates");
-const { aiConfig } = require("./aiProvider");
+const { aiConfig, requireAiResponse } = require("./aiProvider");
 const { validateProjectCategory } = require("./projectCategories");
 
 const planSchema = {
@@ -81,7 +81,7 @@ async function generateAiMilestones(input, { fetchImpl = global.fetch, apiKey } 
       method: "POST", headers: { "x-goog-api-key": key, "Content-Type": "application/json" }, signal: AbortSignal.timeout(25000),
       body: JSON.stringify({ systemInstruction: { parts: [{ text: instructions }] }, contents: [{ role: "user", parts: [{ text: JSON.stringify(project) }] }], generationConfig: { maxOutputTokens: 1800, responseMimeType: "application/json", responseJsonSchema: planSchema } }),
     });
-    if (!response.ok) throw new Error("AI planning service is unavailable right now");
+    await requireAiResponse(response, "planning");
     const result = await response.json();
     const candidate = result.candidates?.[0];
     if (candidate?.finishReason !== "STOP") throw new Error("AI could not complete this plan. Try again or use the guided draft.");

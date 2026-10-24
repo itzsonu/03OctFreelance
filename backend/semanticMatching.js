@@ -1,4 +1,4 @@
-const { aiConfig } = require("./aiProvider");
+const { aiConfig, requireAiResponse } = require("./aiProvider");
 const MODEL = "text-embedding-3-small";
 const MAX_CANDIDATES = 20;
 
@@ -42,7 +42,7 @@ async function embedTexts(texts, fetchImpl = fetch) {
       method: "POST", headers: { "x-goog-api-key": config.apiKey, "Content-Type": "application/json" }, signal: AbortSignal.timeout(20000),
       body: JSON.stringify({ requests: texts.map(text => ({ model: "models/" + config.matchingModel, content: { parts: [{ text }] }, outputDimensionality: 768 })) }),
     });
-    if (!response.ok) throw new Error("Embedding service is unavailable");
+    await requireAiResponse(response, "matching");
     const body = await response.json();
     if (!Array.isArray(body.embeddings) || body.embeddings.length !== texts.length || body.embeddings.some(item => !Array.isArray(item?.values))) throw new Error("Embedding response is incomplete");
     return body.embeddings.map(item => item.values);
