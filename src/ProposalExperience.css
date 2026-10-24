@@ -37,3 +37,24 @@
 .offer-submit-section.amounts-mismatch .offer-total-feedback{color:var(--accent-ink)}
 .offer-submit-section .dialog-actions{flex-wrap:wrap;margin-top:10px}
 @media(max-width:640px){.applicants-dialog{max-height:calc(100dvh - 24px)}.applicants-dialog>.dialog-heading{padding:16px 18px}.applicants-body{padding:16px 18px}.applicants-filters{grid-template-columns:1fr}.applicants-dialog .application-card{padding:15px}.application-top .application-stage{margin-left:0;max-width:100%;flex-basis:100%}.application-thread .application-stage{flex-basis:100%;max-width:100%}.conversation-panel .file-picker{flex-basis:100%;width:100%}.conversation-panel form>.button{width:100%}}
+
+/* Keep nested offer history independent of outer application-list row styles. */
+.simple-list>.application-thread>div:nth-child(2){flex:1 1 220px}
+.hiring-offer-panel .offer-version-list{min-width:0;grid-template-columns:minmax(0,1fr)}
+.hiring-offer-panel .offer-version{
+  display:grid;
+  grid-template-columns:minmax(0,1fr);
+  align-items:start;
+  gap:10px;
+  min-width:0;
+  max-width:100%;
+  padding:16px;
+  word-break:normal;
+}
+.hiring-offer-panel .offer-version>div{min-width:0;align-items:center}
+.hiring-offer-panel .offer-version>div>strong{flex:none}
+.hiring-offer-panel .offer-state{flex:none;white-space:nowrap;width:max-content}
+.hiring-offer-panel .offer-version>p{min-width:0;margin:0;line-height:1.6}
+.hiring-offer-panel .offer-version>ul{display:grid;gap:8px;min-width:0;margin:0;padding-left:20px;line-height:1.6}
+.hiring-offer-panel .offer-version>small{display:block;min-width:0}
+@media(max-width:480px){.hiring-offer-panel .offer-version{padding:12px}}
