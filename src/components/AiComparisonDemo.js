@@ -35,12 +35,12 @@ export default function AiComparisonDemo() {
         {sample.available ? <><p>Only this fixed fictional brief and these three profiles are sent to {sample.providerName}. Your project, profile and real applicants are not sent by this demo.</p><button className="button button-dark" type="button" disabled={busy || Boolean(result)} onClick={compare}>{busy ? "Comparing samples…" : result ? "Sample comparison complete" : "Compare sample profiles with AI"}</button></> : <p role="status">AI is unavailable. Regular sample fit scores are still shown below.</p>}
         {sample.dataNotice && <p className="form-help">{sample.dataNotice}</p>}
         {error && <p role="status">Regular sample scores remain available. No AI ranking has been substituted.</p>}
-        {result && <p className="message success" role="status">{result.cached ? "Saved AI result from the last 10 minutes" : "AI comparison finished"} · {result.model} · {new Date(result.generatedAt).toLocaleString()}. This demonstration does not measure real-world matching accuracy.</p>}
+        {result && <p className="message success" role="status">{result.cached ? "Saved AI result from the last 10 minutes" : "AI comparison finished"} · {result.model} · {new Date(result.generatedAt).toLocaleString()}.</p>}
         <div className="ai-demo-grid">{applicants.map(item => {
           const ai = ranks.get(item._id);
           return <article className="ai-demo-card" key={item._id}><h3>{item.label}</h3><p>{item.freelancer.profile.headline}</p>{ai ? <div className="ai-demo-score"><strong>AI rank #{ai.rank} · {ai.score}/100</strong><span>Text similarity {ai.semanticScore}/100 · Regular fit {ai.ruleScore}/100</span><small>round({ai.semanticScore} × 0.6 + {ai.ruleScore} × 0.4) = {ai.score}</small></div> : <strong>Regular fit: {item.match.score}/100</strong>}<p><strong>Listed skills:</strong> {item.freelancer.profile.skills.join(", ")}</p><p><strong>Missing required skills:</strong> {item.match.missingSkills.join(", ") || "None"}</p><p>{item.proposal}</p><details><summary>Sample profile details</summary><p>{item.freelancer.profile.bio}</p><p>{item.freelancer.profile.experienceYears} years of fictional experience · No verified work</p></details></article>;
         })}</div>
-        <p className="form-help">The technical subject alone does not make this a development job. Review the requested deliverable and full proposals. These authored examples are not an independently labelled evaluation dataset.</p>
+        <p className="form-help">The technical subject alone does not make this a development job. Review the requested deliverable and full proposals.</p>
       </>}
     </div>}
   </section>;
