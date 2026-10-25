@@ -15,8 +15,10 @@ const userSchema = new mongoose.Schema(
     },
     password: {
       type: String,
-      required: true,
+      required: function () { return this.authProvider !== "google"; },
     },
+    authProvider: { type: String, enum: ["password", "google"], default: "password" },
+    googleSubject: { type: String, select: false },
     emailVerifiedAt: { type: Date, default: null },
     emailVerificationTokenHash: { type: String, select: false },
     emailVerificationEmail: { type: String, select: false },
@@ -66,5 +68,6 @@ const userSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+userSchema.index({ googleSubject: 1 }, { unique: true, sparse: true });
 userSchema.index({ role: 1, suspended: 1, createdAt: -1, _id: -1 });
 module.exports = mongoose.model("User", userSchema);

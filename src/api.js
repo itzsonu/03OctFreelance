@@ -71,13 +71,14 @@ export async function restoreSession() {
 }
 
 export async function api(path, options = {}) {
-  const loginAttempt = path === "/auth/login" ? ++loginSequence : loginSequence;
+  const loginAction = ["/auth/login", "/auth/google"].includes(path);
+  const loginAttempt = loginAction ? ++loginSequence : loginSequence;
   const method = (options.method || "GET").toUpperCase();
   const write = !["GET", "HEAD", "OPTIONS"].includes(method);
-  const publicAction = ["/auth/login", "/auth/register", "/auth/forgot-password", "/auth/reset-password", "/account/email/confirm", "/support", "/support/status"].includes(path);
+  const publicAction = ["/auth/login", "/auth/google", "/auth/google/challenge", "/account/email-verification/confirm", "/auth/register", "/auth/forgot-password", "/auth/reset-password", "/account/email/confirm", "/support", "/support/status"].includes(path);
   const beforeRecovery = generation;
   if (write) {
-    if (["/auth/login", "/auth/register"].includes(path)) await warmService();
+    if (["/auth/login", "/auth/register", "/auth/google", "/auth/google/challenge"].includes(path)) await warmService();
     await waitForActiveRecovery();
     if (generation !== beforeRecovery || loginAttempt !== loginSequence) throw new Error("Your account changed. Review this action and try again.");
   }
@@ -102,7 +103,7 @@ export async function api(path, options = {}) {
     if (response.status === 403 && data.code === "CSRF_INVALID" && generation === requestGeneration) { csrfToken = null; ready = false; }
     throw new Error(data.message || `Request failed (${response.status})`);
   }
-  if (path === "/auth/login") {
+  if (loginAction) {
     checkSessionResponse(data);
     if (loginAttempt === loginSequence) { rememberSession(data); announceSessionChange(); }
   }

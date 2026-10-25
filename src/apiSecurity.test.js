@@ -128,3 +128,18 @@ test("login checks readiness before sending credentials and stops if readiness f
   await client.api("/auth/login",{method:"POST",body:"synthetic-credentials"});
   expect(global.fetch.mock.calls.filter(([url])=>url.endsWith("/auth/login"))).toHaveLength(1);
 });
+
+
+test("Google sign-in adopts the same cookie and CSRF session as password login", async () => {
+  global.fetch.mockResolvedValueOnce(response({ status: "ready" })).mockResolvedValueOnce(response({ user, csrfToken: "google-csrf" }));
+  await client.api("/auth/google", { method: "POST", body: JSON.stringify({ credential: "test-id-token", role: "client", mode: "login" }) });
+  expect(client.currentUser()).toEqual(user);
+  expect(localStorage.getItem("token")).toBeNull();
+});
+
+test("email verification can be confirmed without requiring a signed-in session", async () => {
+  global.fetch.mockResolvedValueOnce(response({ message: "Verified" }));
+  await client.api("/account/email-verification/confirm", { method: "POST", body: "{}" });
+  expect(global.fetch).toHaveBeenCalledTimes(1);
+  expect(global.fetch.mock.calls[0][0]).toMatch(/email-verification\/confirm$/);
+});

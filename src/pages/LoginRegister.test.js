@@ -4,6 +4,7 @@ import { MemoryRouter, useLocation } from "react-router-dom";
 import LoginRegister from "./LoginRegister";
 import { api } from "../api";
 
+jest.mock("../components/GoogleSignIn", () => () => null);
 jest.mock("../api", () => ({ api: jest.fn() }));
 jest.mock("../components/AuthFrame", () => ({ children, title }) => <div><h1>{title}</h1>{children}</div>);
 

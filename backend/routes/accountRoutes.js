@@ -18,6 +18,7 @@ async function authenticatedPassword(req) {
   const value = req.body?.currentPassword;
   if (typeof value !== "string" || !value || value.length > 128) fail(400, "Enter your current password");
   const user = await User.findById(req.user._id);
+  if (user && !user.password) fail(400, "Use Forgot password to create a password before changing these settings.");
   if (!user || !await bcrypt.compare(value, user.password)) fail(400, "Current password is incorrect");
   if ((user.tokenVersion || 0) !== (req.user.tokenVersion || 0)) fail(409, "Your session changed. Log in again.");
   return user;

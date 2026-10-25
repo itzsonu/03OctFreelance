@@ -45,6 +45,7 @@ app.use("/api/account", require("./routes/supportRoutes").accountRouter);
 app.use("/api/support", require("./routes/supportRoutes").publicRouter);
 app.use("/api/project-drafts", require("./routes/projectDraftRoutes"));
 app.use("/api/auth", require("./routes/authRoutes"));
+app.use("/api/auth/google", require("./routes/googleAuthRoutes"));
 app.use("/api/profile", require("./routes/profileRoutes"));
 app.use("/api/talent", require("./routes/talentRoutes"));
 app.use("/api/invitations", require("./routes/invitationRoutes"));

@@ -8,7 +8,7 @@ const { createInterface } = require("node:readline");
 const { MongoClient, BSON } = require("mongoose").mongo;
 const { EJSON } = BSON;
 const UUID = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/;
-const EXCLUDED = new Set(["sessions", "ratebuckets", "_recovery_claim"]);
+const EXCLUDED = new Set(["sessions", "ratebuckets", "google_login_challenges", "_recovery_claim"]);
 function inside(root, target) { const rel = path.relative(root, target); return rel === "" || (rel !== ".." && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel)); }
 function namedDatabase(uri) {
   const match = /^mongodb(?:\+srv)?:\/\/[^/]+\/([^?/#]+)(?:\?|$)/.exec(uri || "");

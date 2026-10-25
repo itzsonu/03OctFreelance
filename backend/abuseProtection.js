@@ -26,6 +26,7 @@ async function consume(scope, identity, max, windowMs, now = Date.now()) {
 }
 function actionFor(req) {
   const path = req.originalUrl.split("?")[0].toLowerCase().replace(/\/+$/, "");
+  if (path === "/api/auth/google" || path === "/api/auth/google/challenge") return ["google-sign-in", 30, 15 * MINUTE, 30];
   if (path === "/api/auth/login") return ["login", 20, 15 * MINUTE, 20];
   if (path === "/api/auth/register") return ["registration", 10, 60 * MINUTE, 10];
   if (path === "/api/support") return ["support-submissions", 5, 60 * MINUTE, 5];

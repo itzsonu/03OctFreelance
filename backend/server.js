@@ -11,7 +11,7 @@ async function start() {
   if (require("./fileStorage").storageBackend() === "mongo") await require("./mongoFileStorage").init();
   await deployment.checkPrivateStorage();
   startupStage = "collections";
-  await Promise.all([require("./models/Session").init(), require("./models/RateBucket").init(), require("./models/StorageUsage").init(), require("./models/SupportRequest").init()]);
+  await Promise.all([require("./models/GoogleLoginChallenge").init(), require("./models/Session").init(), require("./models/RateBucket").init(), require("./models/StorageUsage").init(), require("./models/SupportRequest").init()]);
   await Promise.all([require("./models/ProjectTask").init(), require("./models/Notification").init()]);
   startupStage = "http";
   const app = require("./app");
