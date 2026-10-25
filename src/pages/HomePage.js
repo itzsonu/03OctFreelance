@@ -124,6 +124,6 @@ export default function HomePage() {
       <section className="market-how" id="how-it-works"><div className="market-section-inner"><div className="market-section-head"><div><p className="eyebrow">HOW IT WORKS</p><h2>From brief to delivery, together.</h2><p>A simple path for both sides of the project.</p></div></div><div className="market-step-grid">{steps.map(step => <article key={step.number}><span>{step.number}</span><h3>{step.title}</h3><p>{step.text}</p></article>)}</div></div></section>
       <section className="market-cta"><div className="market-section-inner"><div><p className="eyebrow">READY TO GET STARTED?</p><h2>Your next project starts here.</h2></div><div><Link className="button button-light" to="/login?role=client">Post a project ↗</Link><Link className="button button-outline" to="/login?role=freelancer">Find work →</Link></div></div></section>
     </main>
-    <footer className="site-footer marketplace-footer"><Link className="brand" to="/"><span className="brand-mark">✦</span>FreelanceChain</Link><span>Find work. Build trust. Deliver together.</span><PolicyLinks /><span>© {new Date().getFullYear()} FreelanceChain</span></footer>
+    <footer className="site-footer marketplace-footer"><Link className="brand" to="/"><span className="brand-mark">✦</span>FreelanceChain</Link><span>Find work. Build trust. Deliver together.</span><PolicyLinks includeAdmin /><span>© {new Date().getFullYear()} FreelanceChain</span></footer>
   </div>;
 }
