@@ -17,6 +17,7 @@ function requestSecurity(req, res, next) {
 function securityHeaders(req, res, next) {
   res.set({ "Referrer-Policy": "no-referrer", "Cross-Origin-Opener-Policy": "same-origin-allow-popups", "X-Content-Type-Options": "nosniff", "X-Frame-Options": "DENY", "Permissions-Policy": "camera=(), microphone=(), geolocation=()", "Content-Security-Policy": "default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style; img-src 'self' data: blob:; connect-src 'self' https://accounts.google.com/gsi/; frame-src https://accounts.google.com/gsi/; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'" });
   if (process.env.NODE_ENV === "production") res.set("Strict-Transport-Security", "max-age=31536000");
+  if (/^\/login\/?$/.test(req.path)) res.set("Referrer-Policy", "strict-origin");
   if (req.path.startsWith("/api")) res.set("Cache-Control", "no-store");
   next();
 }

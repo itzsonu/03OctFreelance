@@ -22,6 +22,8 @@ export function createHostingConfig(env, routes, deploymentEnv) {
         "Permissions-Policy": "camera=(), microphone=(), geolocation=()",
         "Content-Security-Policy": "default-src 'self'; script-src 'self' https://accounts.google.com/gsi/client; style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style; img-src 'self' data: blob:; connect-src 'self' https://accounts.google.com/gsi/; frame-src https://accounts.google.com/gsi/; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'",
       }, continue: true },
+      // Only the public Google login page shares its origin; private pages retain no-referrer.
+      { src: "^/login/?$", headers: { "Referrer-Policy": "strict-origin" }, continue: true },
       { ...apiRoute, headers: {
         "Cache-Control": "private, no-store",
         "CDN-Cache-Control": "no-store",

@@ -34,6 +34,10 @@ test("cloud config compiles as one route format and forwards API requests privat
   assert.doesNotMatch("/api/missing", new RegExp(spa.src));
   assert.equal(config.routes[0].headers["X-Frame-Options"], "DENY");
   assert.equal(config.routes[0].continue, true);
+  assert.equal(config.routes[0].headers["Referrer-Policy"], "no-referrer");
+  const login = config.routes.find(r => r.headers?.["Referrer-Policy"] === "strict-origin");
+  assert.match("/login", new RegExp(login.src));
+  for (const privatePath of ["/account", "/reset-password", "/client-dashboard", "/api/auth/google", "/admin/login"]) assert.doesNotMatch(privatePath, new RegExp(login.src));
 });
 
 test("cloud config refuses insecure origins, missing secrets and cross-site cookie setup", () => {
