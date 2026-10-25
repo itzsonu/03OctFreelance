@@ -39,3 +39,14 @@ test("visiting a verification link never consumes it without explicit confirmati
   expect(api).toHaveBeenCalledWith("/account/email/confirm", { method: "POST", body: JSON.stringify({ token }) });
   expect(screen.getByRole("heading", { name: "Email updated" })).toBeInTheDocument();
 });
+
+
+test("sign-in email verification requires explicit confirmation and keeps the current session", async () => {
+  api.mockResolvedValue({ message: "Your sign-in email is verified." });
+  render(<MemoryRouter initialEntries={["/verify-email?token=" + "v".repeat(43)]}><VerifyEmailChange verifyCurrentEmail /></MemoryRouter>);
+  expect(api).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Verify email" }));
+  await screen.findByRole("heading", { name: "Email verified" });
+  expect(api).toHaveBeenCalledWith("/account/email-verification/confirm", { method: "POST", body: JSON.stringify({ token: "v".repeat(43) }) });
+  expect(signOut).not.toHaveBeenCalled();
+});

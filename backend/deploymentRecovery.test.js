@@ -20,7 +20,7 @@ test("offline snapshots preserve BSON, indexes and private files while protectin
     await client.connect(); const db = client.db(sourceName);
     const key = crypto.randomUUID(); await fs.writeFile(path.join(uploads, key), "private delivery evidence");
     const userId = new BSON.ObjectId(); const stamp = new Date("2026-10-22T00:00:00Z");
-    await db.collection("users").insertOne({ _id: userId, name: "Fictional recovery example", tokenVersion: 3, passwordResetTokenHash: "invalid-after-restore", emailChangeTokenHash: "also-invalid" });
+    await db.collection("users").insertOne({ _id: userId, name: "Fictional recovery example", tokenVersion: 3, passwordResetTokenHash: "invalid-after-restore", emailChangeTokenHash: "also-invalid", emailVerificationTokenHash: "verification-invalid-after-restore" });
     await db.collection("attachments").insertOne({ storageKey: key, uploader: userId, size: 25 });
     await db.collection("records").insertOne({ when: stamp, user: userId, amount: BSON.Decimal128.fromString("123.45"), long: BSON.Long.fromString("9223372036854775806"), binary: new BSON.Binary(Buffer.from([0, 1, 255])) });
     await db.collection("records").createIndex({ user: 1 }, { name: "unique_user", unique: true, partialFilterExpression: { user: { $exists: true } } });
@@ -45,7 +45,7 @@ test("offline snapshots preserve BSON, indexes and private files while protectin
     assert.equal(String(doc.user), String(userId)); assert.equal(String(doc.amount), "123.45"); assert.equal(String(doc.long), "9223372036854775806");
     assert.deepEqual([...doc.binary.buffer], [0, 1, 255]);
     assert.equal((await target.collection("records").indexes()).find(index => index.name === "unique_user").unique, true);
-    const restoredUser = await target.collection("users").findOne({}); assert.equal(restoredUser.tokenVersion, 4); assert.equal(restoredUser.passwordResetTokenHash, undefined);
+    const restoredUser = await target.collection("users").findOne({}); assert.equal(restoredUser.tokenVersion, 4); assert.equal(restoredUser.passwordResetTokenHash, undefined); assert.equal(restoredUser.emailVerificationTokenHash, undefined);
     assert.equal(await target.collection("sessions").countDocuments(), 0); assert.equal((await target.collection("notifications").findOne({})).emailStatus, "skipped");
     assert.equal(await fs.readFile(path.join(restoredUploads, key), "utf8"), "private delivery evidence");
     await assert.rejects(recovery.restore({ ...options, apply: true }), /must not already exist/);

@@ -30,6 +30,7 @@ export default function AccountSettings() {
   return <Shell role={currentUser()?.role || "client"} eyebrow="YOUR ACCOUNT" title="Account settings" subtitle="Manage your password, email preferences and active sign-ins.">
     {error && <p className="message error" role="alert">{error}</p>}{notice && <p className="message success" role="status">{notice}</p>}
     {!account ? <p>Loading account…</p> : <div className="account-settings-grid">
+      <section className="panel account-settings-card"><h2>Sign-in email</h2><p>{account.email}</p>{account.emailVerified ? <p className="message success">Email verified</p> : <><p>Verify your inbox to confirm this email belongs to you.</p><button className="button button-outline" disabled={busy || account.deliveryMode === "unavailable"} onClick={() => submit("email-verification", {})}>Send verification email</button>{account.deliveryMode === "unavailable" && <p className="form-help">Email delivery is currently unavailable. Please try later.</p>}</>}</section>
       <EmailPreferences />
       <AccountData />
       <section className="panel account-settings-card"><h2>Change password</h2><p>Your current sign-in email is <strong>{account.email}</strong>. Changing your password signs out every device, including this one.</p><form className="stack-form" onSubmit={event => { event.preventDefault(); if (password.password !== password.confirm) { setError("New passwords do not match."); return; } submit("password", { currentPassword: password.currentPassword, password: password.password }); }}>

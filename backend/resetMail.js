@@ -20,6 +20,7 @@ function resetDeliveryMode() {
   if (process.env.RESET_DELIVERY === "gmail") {
     return /^\S+@\S+\.\S+$/.test(gmailUser()) && /^[A-Za-z0-9]{16}$/.test(gmailAppPassword()) ? "email" : "unavailable";
   }
+  if (process.env.RESET_DELIVERY === "brevo") return process.env.BREVO_API_KEY?.trim() && /^\S+@\S+\.\S+$/.test(process.env.RESET_FROM_EMAIL || "") ? "email" : "unavailable";
   if (process.env.RESET_DELIVERY) return "unavailable";
   return process.env.RESEND_API_KEY && process.env.RESET_FROM_EMAIL ? "email" : "unavailable";
 }
@@ -63,6 +64,19 @@ async function sendEmailContent(email, subject, text, { createTransport, idempot
     return;
   }
 
+  if (process.env.RESET_DELIVERY === "brevo") {
+    const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: { "api-key": process.env.BREVO_API_KEY.trim(), "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ sender: { name: "FreelanceChain", email: process.env.RESET_FROM_EMAIL }, to: [{ email }], subject, textContent: text }),
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!response.ok) throw new Error("Email provider rejected delivery (status " + response.status + ")");
+    const receipt = await response.json();
+    if (!receipt?.messageId) throw new Error("Email provider did not acknowledge delivery");
+    return;
+  }
+
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json", ...(idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {}) },
@@ -76,6 +90,8 @@ async function sendEmailContent(email, subject, text, { createTransport, idempot
   });
   if (!response.ok) throw new Error(`Password reset email failed with status ${response.status}`);
 }
+
+function sendVerificationEmail(email, token, options) { return sendSecurityEmail(email, token, { pathname: "/verify-email", purpose: "account email verification", subject: "Verify your FreelanceChain email", instruction: "Confirm your FreelanceChain sign-in email within 30 minutes:" }, options); }
 
 function sendResetEmail(email, token, options) { return sendSecurityEmail(email, token, {}, options); }
 function sendEmailChangeLink(email, token, options) { return sendSecurityEmail(email, token, { pathname: "/account/verify-email", purpose: "email verification", subject: "Verify your new FreelanceChain email", instruction: "Confirm your new FreelanceChain email within 30 minutes:" }, options); }
@@ -95,4 +111,4 @@ async function sendEventEmail(email, notification, options = {}) {
   return mode;
 }
 
-module.exports = { sendEventEmail, sendEmailChangeLink, RESET_MESSAGE, LOCAL_RESET_MESSAGE, resetDeliveryMode, resetDeliveryReady, sendResetEmail };
+module.exports = { sendVerificationEmail, sendEventEmail, sendEmailChangeLink, RESET_MESSAGE, LOCAL_RESET_MESSAGE, resetDeliveryMode, resetDeliveryReady, sendResetEmail };

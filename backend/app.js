@@ -40,6 +40,7 @@ app.get("/api/health", (req, res) => {
 app.get("/api/updates", protect, subscribe);
 
 app.use("/api/account", require("./routes/accountRoutes"));
+app.use("/api/account/email-verification", require("./routes/emailVerificationRoutes"));
 app.use("/api/account", require("./routes/supportRoutes").accountRouter);
 app.use("/api/support", require("./routes/supportRoutes").publicRouter);
 app.use("/api/project-drafts", require("./routes/projectDraftRoutes"));

@@ -21,9 +21,9 @@ export default function LoginRegister({ adminOnly = false }) {
     setBusy(true);
     try {
       if (mode === "register") {
-        await api("/auth/register", { method: "POST", body: JSON.stringify({ name: form.name.trim(), email: form.email.trim(), password: form.password, role }) });
+        const registered = await api("/auth/register", { method: "POST", body: JSON.stringify({ name: form.name.trim(), email: form.email.trim(), password: form.password, role }) });
         setMode("login"); setForm({ ...form, password: "", confirm: "" });
-        setSuccess("Account created. Log in to continue.");
+        setSuccess(`Account created. ${registered?.verificationMessage || "Log in to continue."}`);
       } else {
         const data = await api("/auth/login", { method: "POST", body: JSON.stringify({ email: form.email.trim(), password: form.password, role }) });
         const projectId = search.get("project");

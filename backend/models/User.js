@@ -18,6 +18,10 @@ const userSchema = new mongoose.Schema(
       required: true,
     },
     emailVerifiedAt: { type: Date, default: null },
+    emailVerificationTokenHash: { type: String, select: false },
+    emailVerificationEmail: { type: String, select: false },
+    emailVerificationExpiresAt: { type: Date, select: false },
+    emailVerificationRequestedAt: { type: Date, select: false },
     emailPreferences: {
       proposals: { type: Boolean, default: false },
       offers: { type: Boolean, default: false },

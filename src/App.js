@@ -61,6 +61,7 @@ function App() {
         <Route path="/admin/support" element={<ProtectedRoute allowedRole="admin"><AdminSupport /></ProtectedRoute>} />
         <Route path="/admin/storage" element={<ProtectedRoute allowedRole="admin"><AdminStorage /></ProtectedRoute>} />
         <Route path="/account/verify-email" element={<VerifyEmailChange />} />
+        <Route path="/verify-email" element={<VerifyEmailChange verifyCurrentEmail />} />
         <Route path="/account" element={<ProtectedRoute><AccountSettings /></ProtectedRoute>} />
         <Route path="/" element={<HomePage />} />
         <Route path="/jobs/:projectId" element={<PublicJob />} />

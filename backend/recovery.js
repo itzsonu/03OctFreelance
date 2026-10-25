@@ -134,7 +134,7 @@ async function restore({ uri, uploads, source, apply = false, offlineConfirmed, 
       if (indexes.length) await db.collection(file.collection).createIndexes(indexes);
     }
     // Old recovery links and sign-ins must never regain validity after a restore.
-    await db.collection("users").updateMany({}, { $inc: { tokenVersion: 1 }, $unset: { ...require("./accountSecurity").resetFields, ...require("./accountSecurity").emailChangeFields } });
+    await db.collection("users").updateMany({}, { $inc: { tokenVersion: 1 }, $unset: { ...require("./accountSecurity").resetFields, ...require("./accountSecurity").emailChangeFields, ...require("./accountSecurity").verificationFields } });
     await db.collection("notifications").updateMany({ emailStatus: { $in: ["pending", "sending"] } }, { $set: { emailStatus: "skipped" }, $unset: { emailLeaseUntil: 1 } });
     await db.collection("_recovery_claim").updateOne({}, { $set: { complete: true, restoredAt: new Date() } }, { upsert: true });
     return { restored: true, database, files: manifest.uploads.length, uploads: target };

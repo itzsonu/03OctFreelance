@@ -36,3 +36,9 @@ The local demo currently uses `RESET_DELIVERY=console`. In this mode the backend
 The reset link expires after 15 minutes. The API deliberately shows the same result for registered and unknown addresses. If delivery fails, the backend records an error in its terminal and invalidates that reset token. With no App Password, recovery status is unavailable rather than pretending an email can be sent.
 
 Gmail via App Password is intended for this small demo. Google may limit or reject automated sending; for a public deployment use a suitable email provider and an HTTPS `APP_ORIGIN`. [Nodemailer's Gmail guide](https://nodemailer.com/guides/using-gmail) explains the Gmail transport and its limits.
+
+
+## Free Render deployment: Brevo HTTPS
+Use RESET_DELIVERY=brevo, BREVO_API_KEY (private server variable), and RESET_FROM_EMAIL (the verified sender email). APP_ORIGIN stays the existing exact HTTPS origin. Keep EVENT_EMAILS_ENABLED=false; verification/reset are separate. Gmail SMTP is unavailable on free Render.
+Create a free Brevo account, verify the sender and activate transactional mail, then privately configure its API key in Render. No key belongs in React, Git, screenshots or chat. Free plan currently300 sends/day. Free-mail sender addresses may be rewritten by Brevo. Check real received verification and reset messages before calling live delivery verified.
+New accounts receive verification when configured. Existing users choose Account settings → Sign-in email → Send verification email. The one-time30-minute link is bound to the current email and consumed only by explicit confirmation. Existing sign-ins remain usable if delivery fails.

@@ -43,8 +43,14 @@ router.post("/register", async (req, res) => {
       role,
     });
 
+    let verificationMessage = "You can verify your sign-in email from Account settings.";
+    if (resetDeliveryReady()) {
+      try { verificationMessage = (await require("../emailVerification").requestVerification(user)).message; }
+      catch { verificationMessage = "Your account was created. Request a verification email from Account settings."; }
+    }
     res.status(201).json({
       message: "User registered successfully",
+      verificationMessage,
       user: {
         id: user._id,
         name: user.name,
