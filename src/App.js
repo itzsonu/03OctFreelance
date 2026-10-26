@@ -1,31 +1,11 @@
 import SessionBoundary from "./components/SessionBoundary";
 import ServiceConnectionNotice from "./components/ServiceConnectionNotice";
-import Support from "./pages/Support";
-import ServicePolicies from "./pages/ServicePolicies";
-import AdminSupport from "./pages/AdminSupport";
-import AdminStorage from "./pages/AdminStorage";
 import "./ServicePages.css";
-import React from "react";
+import React, { lazy, Suspense } from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 
-import AccountSettings from "./pages/AccountSettings";
-import VerifyEmailChange from "./pages/VerifyEmailChange";
 import HomePage from "./pages/HomePage";
 import LoginRegister from "./pages/LoginRegister";
-import ForgotPassword from "./pages/ForgotPassword";
-import ResetPassword from "./pages/ResetPassword";
-import ClientDashboard from "./pages/ClientDashboard";
-import FreelancerDashboard from "./pages/FreelancerDashboard";
-import TaskBoard from "./pages/TaskBoard";
-import MyTasks from "./pages/MyTasks";
-import MilestoneChain from "./pages/MilestoneChain";
-import WorkroomInbox from "./pages/WorkroomInbox";
-import FreelancerProfile from "./pages/FreelancerProfile";
-import TalentDirectory from "./pages/TalentDirectory";
-import PublicJob from "./pages/PublicJob";
-import TalentProfile from "./pages/TalentProfile";
-import AdminCases from "./pages/AdminCases";
-import AdminDashboard from "./pages/AdminDashboard";
 import "./Administration.css";
 import ProtectedRoute from "./ProtectedRoute";
 
@@ -50,11 +30,32 @@ import "./ColdStart.css";
 import "./TaskBoard.css";
 import "./ResponsivePolish.css";
 
+const Support = lazy(() => import("./pages/Support"));
+const ServicePolicies = lazy(() => import("./pages/ServicePolicies"));
+const AdminSupport = lazy(() => import("./pages/AdminSupport"));
+const AdminStorage = lazy(() => import("./pages/AdminStorage"));
+const AccountSettings = lazy(() => import("./pages/AccountSettings"));
+const VerifyEmailChange = lazy(() => import("./pages/VerifyEmailChange"));
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const ClientDashboard = lazy(() => import("./pages/ClientDashboard"));
+const FreelancerDashboard = lazy(() => import("./pages/FreelancerDashboard"));
+const TaskBoard = lazy(() => import("./pages/TaskBoard"));
+const MyTasks = lazy(() => import("./pages/MyTasks"));
+const MilestoneChain = lazy(() => import("./pages/MilestoneChain"));
+const WorkroomInbox = lazy(() => import("./pages/WorkroomInbox"));
+const FreelancerProfile = lazy(() => import("./pages/FreelancerProfile"));
+const TalentDirectory = lazy(() => import("./pages/TalentDirectory"));
+const PublicJob = lazy(() => import("./pages/PublicJob"));
+const TalentProfile = lazy(() => import("./pages/TalentProfile"));
+const AdminCases = lazy(() => import("./pages/AdminCases"));
+const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
+
 function App() {
   return (
     <Router>
       <ServiceConnectionNotice />
-      <SessionBoundary><Routes>
+      <SessionBoundary><Suspense fallback={<main className="empty-state" role="status" aria-live="polite">Loading your page…</main>}><Routes>
         <Route path="/terms" element={<ServicePolicies />} />
         <Route path="/privacy" element={<ServicePolicies privacy />} />
         <Route path="/support" element={<Support />} />
@@ -106,7 +107,7 @@ function App() {
           }
         />
         <Route path="*" element={<HomePage />} />
-      </Routes></SessionBoundary>
+      </Routes></Suspense></SessionBoundary>
     </Router>
   );
 }

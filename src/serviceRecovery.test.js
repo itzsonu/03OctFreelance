@@ -46,3 +46,24 @@ test('an explicitly aborted request does not start service recovery',async()=>{
   await expect(service.fetchWithRecovery('/one',{signal:controller.signal},'/ready')).rejects.toThrow('cancelled');
   expect(global.fetch).toHaveBeenCalledTimes(1);
 });
+
+test('recent healthy wake is reused briefly and expires without bypassing health validation', async()=>{
+  jest.useFakeTimers();global.fetch.mockResolvedValue(response(200,{status:'ready'}));
+  await service.ensureServiceReady('/ready');await service.ensureServiceReady('/ready');
+  expect(global.fetch).toHaveBeenCalledTimes(1);
+  jest.advanceTimersByTime(15001);await service.ensureServiceReady('/ready');
+  expect(global.fetch).toHaveBeenCalledTimes(2);
+});
+
+test('a real read failure invalidates recent readiness and checks again before retry', async()=>{
+  global.fetch.mockResolvedValueOnce(response(200,{status:'ready'}));await service.ensureServiceReady('/ready');
+  global.fetch.mockResolvedValueOnce(response(503)).mockResolvedValueOnce(response(200,{status:'ready'})).mockResolvedValueOnce(response(200,{ok:true}));
+  expect((await service.fetchWithRecovery('/projects',{},'/ready')).ok).toBe(true);
+  expect(global.fetch.mock.calls.map(([url])=>url)).toEqual(['/ready','/projects','/ready','/projects']);
+});
+
+test('readiness reuse is scoped to the checked health URL',async()=>{
+  global.fetch.mockResolvedValue(response(200,{status:'ready'}));
+  await service.ensureServiceReady('/ready');await service.ensureServiceReady('/other-ready');
+  expect(global.fetch).toHaveBeenCalledTimes(2);
+});
