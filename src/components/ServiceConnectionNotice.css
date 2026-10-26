@@ -1,1 +1,3 @@
 .service-connection-notice{position:fixed;z-index:3000;bottom:20px;left:50%;transform:translateX(-50%);width:min(440px,calc(100vw - 32px));box-sizing:border-box;padding:16px 20px;background:var(--paper,#f7f3ed);color:var(--ink,#292724);border:1px solid var(--line,#e4d8cb);border-radius:12px;box-shadow:0 6px 28px #29272420}.service-connection-notice strong{display:block;font-size:15px}.service-connection-notice p{margin:6px 0 0;font-size:14px;line-height:1.5}
+
+.service-connection-notice .button{margin-top:12px}

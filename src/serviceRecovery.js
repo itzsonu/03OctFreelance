@@ -6,30 +6,36 @@ let readyUntil = 0;
 const READY_REUSE_MS = 15000;
 const transient = response => [502, 503, 504].includes(response?.status);
 const unavailable = () => new Error("The connection is taking longer than expected. Please try again shortly.");
-function notify(state) { if (state === connectionState) return; connectionState = state; for (const listener of listeners) listener(state); }
+function notify(state) { if (state === "unavailable") readyUntil = 0; if (state === connectionState) return; connectionState = state; for (const listener of listeners) listener(state); }
 export function watchServiceConnection(listener) { listeners.add(listener); listener(connectionState); return () => listeners.delete(listener); }
-async function timedFetch(url, options, timeout = 12000) {
+async function timedFetch(url, options, timeout = 12000, consume = response => response) {
   const controller = new AbortController();
   const abort = () => controller.abort();
   if (options.signal?.aborted) controller.abort();
   else options.signal?.addEventListener("abort", abort, { once: true });
-  const timer = setTimeout(abort, timeout);
-  try { return await fetch(url, { ...options, signal: controller.signal }); }
-  finally { clearTimeout(timer); options.signal?.removeEventListener("abort", abort); }
+  let timer;
+  const expired = new Promise((_, reject) => {
+    timer = setTimeout(() => { controller.abort(); reject(new Error("Connection check timed out")); }, timeout);
+  });
+  try {
+    // Keep the deadline active through the readiness JSON body, not just headers.
+    return await Promise.race([(async () => consume(await fetch(url, { ...options, signal: controller.signal })))(), expired]);
+  } finally { clearTimeout(timer); options.signal?.removeEventListener("abort", abort); }
 }
+
 export function ensureServiceReady(url) {
   if (recovery) return recovery;
   if (url === lastReadyUrl && Date.now() < readyUntil) return Promise.resolve();
   notify("connecting");
-  const deadline = Date.now() + 75000;
+  const deadline = Date.now() + 120000;
   const request = (async () => {
-    for (let attempt = 0; attempt < 6 && Date.now() < deadline; attempt++) {
+    for (let attempt = 0; attempt < 40 && Date.now() < deadline; attempt++) {
       try {
-        const response = await timedFetch(url, { cache: "no-store", credentials: "include" }, Math.min(12000, deadline - Date.now()));
-        if (response.ok && (await response.json()).status === "ready") { lastReadyUrl = url; readyUntil = Date.now() + READY_REUSE_MS; notify("idle"); return; }
+        const response = await timedFetch(url, { cache: "no-store", credentials: "include" }, Math.min(12000, deadline - Date.now()), async result => ({ status: result.status, ready: result.ok && (await result.json()).status === "ready" }));
+        if (response.ready) { lastReadyUrl = url; readyUntil = Date.now() + READY_REUSE_MS; notify("idle"); return; }
         if ([401, 403, 404].includes(response.status)) break;
       } catch { /* Cold starts and dropped proxy connections are temporary. */ }
-      if (attempt < 5) await new Promise(resolve => setTimeout(resolve, Math.min(15000, 5000 * (attempt + 1), Math.max(0, deadline - Date.now()))));
+      if (attempt < 39 && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, Math.min(3000, deadline - Date.now())));
     }
     notify("unavailable"); throw unavailable();
   })();

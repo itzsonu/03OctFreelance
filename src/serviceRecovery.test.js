@@ -29,9 +29,9 @@ test('submitted writes and authorization failures are never retried', async()=>{
 test('persistent outage has a finite wait and does not keep polling forever', async()=>{
   jest.useFakeTimers();global.fetch.mockResolvedValue(response(503));
   const pending=service.fetchWithRecovery('/one',{},'/ready').catch(error=>error);
-  await flush();for(let i=0;i<8;i++){jest.advanceTimersByTime(15000);await flush();}
+  await flush();for(let i=0;i<42;i++){jest.advanceTimersByTime(3000);await flush();}
   expect(await pending).toEqual(expect.objectContaining({message:expect.stringMatching(/longer than expected/)}));
-  expect(global.fetch.mock.calls.length).toBeLessThanOrEqual(7);
+  expect(global.fetch.mock.calls.length).toBeLessThanOrEqual(41);
 });
 
 test('a changed account prevents replaying the old read after wake-up',async()=>{
@@ -66,4 +66,34 @@ test('readiness reuse is scoped to the checked health URL',async()=>{
   global.fetch.mockResolvedValue(response(200,{status:'ready'}));
   await service.ensureServiceReady('/ready');await service.ensureServiceReady('/other-ready');
   expect(global.fetch).toHaveBeenCalledTimes(2);
+});
+
+
+test('recovery keeps checking through a longer cold start and replays only the read',async()=>{
+  jest.useFakeTimers();const started=Date.now();let reads=0;
+  global.fetch.mockImplementation(async url=>{if(url==='/ready')return response(Date.now()-started>=80000?200:503,{status:'ready'});reads++;return response(reads===1?502:200);});
+  const pending=service.fetchWithRecovery('/projects',{},'/ready');await flush();
+  for(let i=0;i<28;i++){jest.advanceTimersByTime(3000);await flush();}
+  expect((await pending).ok).toBe(true);expect(reads).toBe(2);
+});
+
+test('a stalled readiness body times out and a later valid probe recovers',async()=>{
+  jest.useFakeTimers();let checks=0;
+  global.fetch.mockImplementation(async()=>{checks++;return checks===1?{status:200,ok:true,json:()=>new Promise(()=>{})}:response(200,{status:'ready'});});
+  const pending=service.ensureServiceReady('/ready');await flush();
+  jest.advanceTimersByTime(12000);await flush();jest.advanceTimersByTime(3000);await flush();
+  await pending;expect(checks).toBe(2);
+});
+
+test('manual reconnect can succeed after bounded recovery failed',async()=>{
+  global.fetch.mockResolvedValueOnce(response(403));await expect(service.ensureServiceReady('/ready')).rejects.toThrow('longer than expected');
+  global.fetch.mockResolvedValueOnce(response(200,{status:'ready'}));await service.ensureServiceReady('/ready');
+  expect(global.fetch).toHaveBeenCalledTimes(2);
+});
+
+test('failed read after a healthy probe clears cached readiness for reconnect',async()=>{
+  global.fetch.mockResolvedValueOnce(response(503)).mockResolvedValueOnce(response(200,{status:'ready'})).mockResolvedValueOnce(response(503));
+  await expect(service.fetchWithRecovery('/projects',{},'/ready')).rejects.toThrow('longer than expected');
+  global.fetch.mockResolvedValueOnce(response(200,{status:'ready'}));await service.ensureServiceReady('/ready');
+  expect(global.fetch.mock.calls.filter(([url])=>url==='/ready')).toHaveLength(2);
 });
