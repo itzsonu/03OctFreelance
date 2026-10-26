@@ -21,7 +21,9 @@
     "backup": "node scripts/recovery.js backup",
     "restore": "node scripts/recovery.js restore",
     "health:check": "node scripts/checkHealth.js",
-    "test:launch": "node scripts/verifyLaunch.js"
+    "test:launch": "node scripts/verifyLaunch.js",
+    "benchmark:api": "node scripts/apiBenchmark.js",
+    "test:benchmark": "node --test scripts/apiBenchmarkMetrics.test.js"
   },
   "keywords": [],
   "author": "",
