@@ -1,0 +1,36 @@
+name: Public connectivity diagnosis
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/connectivity.yml']
+permissions: {}
+jobs:
+  public-requests:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - name: Measure three public requests without credentials or load generation
+        shell: bash
+        run: |
+          node <<'NODE'
+          const targets = [
+            ['frontend', 'https://freelancechain-demo.vercel.app/', 20000],
+            ['backend-ready', 'https://freelancechain-api-zje1.onrender.com/api/health/ready', 45000],
+            ['same-origin-ready', 'https://freelancechain-demo.vercel.app/api/health/ready', 45000],
+          ];
+          for (const [label, url, deadline] of targets) {
+            const start = performance.now();
+            try {
+              const response = await fetch(url, { redirect: 'error', signal: AbortSignal.timeout(deadline) });
+              const headersMs = Math.round(performance.now() - start);
+              // Drain the body to measure a complete response, but never log its content.
+              const body = await response.arrayBuffer();
+              console.log(JSON.stringify({ at: new Date().toISOString(), label, status: response.status, headersMs, totalMs: Math.round(performance.now() - start), bytes: body.byteLength }));
+              if (!response.ok) process.exitCode = 1;
+            } catch (error) {
+              console.log(JSON.stringify({ at: new Date().toISOString(), label, totalMs: Math.round(performance.now() - start), error: ['TimeoutError', 'AbortError', 'TypeError'].includes(error.name) ? error.name : 'RequestError' }));
+              process.exitCode = 1;
+            }
+          }
+          NODE
