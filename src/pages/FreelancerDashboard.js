@@ -57,7 +57,12 @@ export default function FreelancerDashboard() {
   const [answerText, setAnswerText] = useState("");
   const [editingProposalId, setEditingProposalId] = useState(null);
   const [proposalEdits, setProposalEdits] = useState({ proposal: "", proposedPrice: "", deliveryEstimateDays: "14", portfolioLinks: "", answerQuestion: "", answerText: "" });
-  const [loading, setLoading] = useState(true);
+  const [sectionLoading, setSectionLoading] = useState({ projects: true, applications: true, saved: true, invitations: true });
+  const [sectionErrors, setSectionErrors] = useState({});
+  const projectView = tab === "saved" ? "saved" : "assigned";
+  const section = tab === "applications" ? "applications" : tab === "invitations" ? "invitations" : "projects";
+  const loading = sectionLoading[section] || (tab === "saved" && sectionLoading.saved);
+  const sectionError = tab === "discover" ? "" : sectionErrors[section] || (tab === "saved" && sectionErrors.saved);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -70,17 +75,35 @@ export default function FreelancerDashboard() {
 
   const load = useCallback(async () => {
     const version = {}; loadGeneration.current = version;
-    setLoading(true);
-    try {
-      const [projectData, applicationData, savedData, invitationData] = await Promise.all([api('/projects/all?page='+projectPage+'&pageSize=12&view='+(tab === 'saved' ? 'saved' : 'assigned')), api('/applications/mine?page='+applicationPage+'&pageSize=12'), api('/projects/saved'), api('/invitations/mine')]);
-      if (version !== loadGeneration.current) return;
-      const projectResult = readPage(projectData, projectPage); const applicationResult = readPage(applicationData, applicationPage);
-      if (projectPage > Math.max(1,projectResult.pages)) { setProjectPage(Math.max(1,projectResult.pages)); return; }
-      if (applicationPage > Math.max(1,applicationResult.pages)) { setApplicationPage(Math.max(1,applicationResult.pages)); return; }
-      setProjectInfo(projectResult); setApplicationInfo(applicationResult); setProjects(projectResult.items); setApplications(applicationResult.items); setSavedIds(savedData); setInvitations(invitationData); setError('');
-    } catch (err) { if (version === loadGeneration.current) setError(err.message); }
-    finally { if (version === loadGeneration.current) setLoading(false); }
-  }, [projectPage, applicationPage, tab]);
+    setSectionLoading({ projects: true, applications: true, saved: true, invitations: true });
+    setSectionErrors({});
+    // Publish each result immediately. A slow or failed invitation request must
+    // not hide an already returned application/offer or make it look empty.
+    async function readSection(key, request, applyResult) {
+      try {
+        const data = await request();
+        if (version === loadGeneration.current) applyResult(data);
+      } catch (err) {
+        if (version === loadGeneration.current) setSectionErrors(current => ({ ...current, [key]: err.message }));
+      } finally {
+        if (version === loadGeneration.current) setSectionLoading(current => ({ ...current, [key]: false }));
+      }
+    }
+    await Promise.all([
+      readSection("projects", () => api('/projects/all?page='+projectPage+'&pageSize=12&view='+projectView), data => {
+        const result = readPage(data, projectPage);
+        if (projectPage > Math.max(1, result.pages)) { setProjectPage(Math.max(1, result.pages)); return; }
+        setProjectInfo(result); setProjects(result.items);
+      }),
+      readSection("applications", () => api('/applications/mine?page='+applicationPage+'&pageSize=12'), data => {
+        const result = readPage(data, applicationPage);
+        if (applicationPage > Math.max(1, result.pages)) { setApplicationPage(Math.max(1, result.pages)); return; }
+        setApplicationInfo(result); setApplications(result.items);
+      }),
+      readSection("saved", () => api('/projects/saved'), setSavedIds),
+      readSection("invitations", () => api('/invitations/mine'), setInvitations),
+    ]);
+  }, [projectPage, applicationPage, projectView]);
   useEffect(() => { load(); return () => { loadGeneration.current = null; }; }, [load]);
   useEffect(() => { setQueryDraft(query); }, [query]);
   useEffect(() => {
@@ -231,6 +254,7 @@ export default function FreelancerDashboard() {
   return <Shell role="freelancer" eyebrow="FREELANCER WORKSPACE" title="Find your next great project." subtitle="Explore open work, send a thoughtful proposal and track your progress." action={<Link className="button button-outline" to="/profile">Edit my profile ↗</Link>}>
     {notice && <div className="message success" role="status">{notice}<button onClick={() => setNotice("")} aria-label="Dismiss message">×</button></div>}
     {error && <div className="message error" role="alert">{error}<button onClick={() => setError("")} aria-label="Dismiss error">×</button></div>}
+    {sectionError && <div className="message error" role="alert">This view could not load. {sectionError}<button type="button" onClick={load}>Retry this view</button></div>}
     {tab === "discover" && <RecommendedProjects refresh={discoveryRefresh} onOpen={project => openBrief(project, "recommended")} openingProjectId={openingProjectId} openError={briefOpenError?.source === "recommended" ? briefOpenError : null} onCancelOpen={cancelBriefLoad} />}
     <div className="metrics-grid"><div className="metric-card"><span>Open projects</span><strong>{projectInfo.summary?.open ?? open.length}</strong><small>Ready for proposals</small><span className="metric-icon">↗</span></div><div className="metric-card"><span>Active work</span><strong>{projectInfo.summary?.active ?? assigned.filter(project => project.status === "In Progress").length}</strong><small>Projects assigned to you</small><span className="metric-icon">▦</span></div><div className="metric-card"><span>Pending proposals</span><strong>{pending}</strong><small>Waiting for a response</small><span className="metric-icon">✦</span></div></div>
     <section className="panel browse-panel" id="open-project-discovery"><div className="panel-heading"><div><p className="eyebrow">YOUR WORKSPACE</p><h2>Projects & proposals</h2></div>{liveStatus === "live" && <span className="live-pill">Live updates</span>}{liveStatus === "reconnecting" && <span className="live-pill reconnecting">Reconnecting…</span>}</div>
@@ -239,7 +263,7 @@ export default function FreelancerDashboard() {
         <button role="tab" aria-selected={tab === "saved"} className={tab === "saved" ? "active" : ""} onClick={() => { setTab("saved"); setProjectPage(1); }}>Saved <span>{projectInfo.summary?.saved ?? savedOpen.length}</span></button>
         <button role="tab" aria-selected={tab === "invitations"} className={tab === "invitations" ? "active" : ""} onClick={() => setTab("invitations")}>Invitations <span>{activeInvitations.length}</span></button>
         <button role="tab" aria-selected={tab === "assigned"} className={tab === "assigned" ? "active" : ""} onClick={() => { setTab("assigned"); setProjectPage(1); }}>My projects <span>{projectInfo.summary?.assigned ?? assigned.length}</span></button>
-        <button role="tab" aria-selected={tab === "applications"} className={tab === "applications" ? "active" : ""} onClick={() => setTab("applications")}>My applications <span>{applicationInfo.total}</span></button>
+        <button role="tab" aria-selected={tab === "applications"} className={tab === "applications" ? "active" : ""} onClick={() => setTab("applications")}>My applications <span>{sectionLoading.applications || sectionErrors.applications ? "…" : applicationInfo.total}</span></button>
       </div>
       {(tab === "discover" || tab === "saved") && <>
         {tab === "discover" && <>
@@ -256,7 +280,7 @@ export default function FreelancerDashboard() {
           </form>
           <div className="discovery-meta"><p>{discoveryLoading ? "Loading projects…" : `Showing ${discoveryTotal ? (page - 1) * 12 + 1 : 0}–${Math.min(page * 12, discoveryTotal)} of ${discoveryTotal} open projects`}</p>{activeDiscoveryFilters.length > 0 && <div className="market-active-filters discovery-active-filters" aria-label="Active filters">{activeDiscoveryFilters.map(filter => <span className="market-active-filter" key={filter}>{filter}</span>)}<button type="button" className="text-button" onClick={clearDiscovery}>Clear filters</button></div>}</div>
         </>}
-        {(tab === "discover" ? discoveryLoading : loading) ? <p className="empty-state" role="status">Loading projects…</p> : tab === "discover" && discoveryError ? <div className="empty-state" role="alert"><h3>Projects could not load</h3><p>Try again in a moment.</p><button className="button button-outline" onClick={() => setDiscoveryRefresh(value => value + 1)}>Try again</button></div> : visibleJobs.length === 0 ? <div className="empty-state"><span>⌕</span><h3>{tab === "saved" ? "No saved projects yet" : discoveryTotal ? "No projects on this page" : query || category || skill || minBudget || maxBudget || deadlineFrom || deadlineTo ? "No matching projects found" : "No open projects yet"}</h3><p>{tab === "saved" ? "Save an open project to keep it here while you decide." : "Try broadening your filters or check back for new opportunities."}</p>{tab === "discover" && (query || category || skill || minBudget || maxBudget || deadlineFrom || deadlineTo) && <button className="button button-outline" onClick={clearDiscovery}>Clear filters</button>}</div> : <div className="discover-grid">{visibleJobs.map(project => {
+        {sectionError ? null : (tab === "discover" ? discoveryLoading : loading) ? <p className="empty-state" role="status">Loading projects…</p> : tab === "discover" && discoveryError ? <div className="empty-state" role="alert"><h3>Projects could not load</h3><p>Try again in a moment.</p><button className="button button-outline" onClick={() => setDiscoveryRefresh(value => value + 1)}>Try again</button></div> : visibleJobs.length === 0 ? <div className="empty-state"><span>⌕</span><h3>{tab === "saved" ? "No saved projects yet" : discoveryTotal ? "No projects on this page" : query || category || skill || minBudget || maxBudget || deadlineFrom || deadlineTo ? "No matching projects found" : "No open projects yet"}</h3><p>{tab === "saved" ? "Save an open project to keep it here while you decide." : "Try broadening your filters or check back for new opportunities."}</p>{tab === "discover" && (query || category || skill || minBudget || maxBudget || deadlineFrom || deadlineTo) && <button className="button button-outline" onClick={clearDiscovery}>Clear filters</button>}</div> : <div className="discover-grid">{visibleJobs.map(project => {
           const application = applications.find(item => item.project?._id === project._id) || (project.applicationStatus ? { status: project.applicationStatus } : null);
           const isSaved = savedIds.includes(project._id);
           return <article className="discover-card" key={project._id}>
@@ -271,9 +295,9 @@ export default function FreelancerDashboard() {
         })}</div>}
         {tab === "discover" && !discoveryLoading && !discoveryError && discoveryPages > 1 && <nav className="market-pagination dashboard-pagination" aria-label="Project result pages"><button className="button button-outline" disabled={page <= 1} onClick={() => updateDiscovery({ page: String(page - 1) }, false)}>← Previous</button><span>Page {page} of {discoveryPages}</span><button className="button button-outline" disabled={page >= discoveryPages} onClick={() => updateDiscovery({ page: String(page + 1) }, false)}>Next →</button></nav>}
       </>}
-      {tab === "invitations" && (activeInvitations.length === 0 ? <div className="empty-state"><span>✉</span><h3>No active invitations</h3><p>Clients can invite you after you choose to show your profile in talent search.</p><Link className="button button-outline" to="/profile">Edit profile →</Link></div> : <div className="invitation-list">{activeInvitations.map(invitation => <article key={invitation._id}><div className="invitation-top"><span className="status status-open">Invitation</span><small>From {invitation.client?.name || "Client"}</small></div><h3>{invitation.project.title}</h3><p>{invitation.note}</p><div className="skill-list">{(invitation.project.requiredSkills || []).map(item => <span className="skill-chip" key={item}>{item}</span>)}</div><div className="invitation-actions"><strong>{money(invitation.project.budget)} budget</strong><button className="button button-outline" onClick={() => declineInvitation(invitation._id)}>Decline</button><button className="button button-dark" onClick={() => { setSelected(invitation.project); prepareProposal(invitation.project); }}>View & propose ↗</button></div></article>)}</div>)}
-      {tab === "assigned" && (loading ? <p role="status">Loading assigned projects…</p> : assigned.length === 0 ? <div className="empty-state"><span>▦</span><h3>No assigned projects yet</h3><p>A project is assigned after both sides agree to the same offer version.</p></div> : <div className="simple-list">{assigned.map(project => <article key={project._id}><div className="project-initial">{project.title[0]}</div><div><strong>{project.title}</strong><small>{project.milestones?.filter(milestone => milestone.status === "completed").length || 0} of {project.milestones?.length || 0} milestones approved</small></div><span className={`status status-${project.status.toLowerCase().replaceAll(" ", "-")}`}>{project.status}</span><Link className="button button-outline" to={`/task-boards/${project._id}`}>Task board →</Link><Link className="button button-outline" to={`/milestones/${project._id}`}>View milestones ↗</Link></article>)}</div>)}
-      {tab === "applications" && (loading ? <p role="status">Loading applications…</p> : applications.length === 0 ? <div className="empty-state"><span>✦</span><h3>No applications yet</h3><p>Find an open project and send your first proposal.</p></div> : <div className="simple-list">{applications.map(application => <article className="application-thread" key={application._id}>
+      {tab === "invitations" && (sectionError ? null : loading ? <p role="status">Loading invitations…</p> : activeInvitations.length === 0 ? <div className="empty-state"><span>✉</span><h3>No active invitations</h3><p>Clients can invite you after you choose to show your profile in talent search.</p><Link className="button button-outline" to="/profile">Edit profile →</Link></div> : <div className="invitation-list">{activeInvitations.map(invitation => <article key={invitation._id}><div className="invitation-top"><span className="status status-open">Invitation</span><small>From {invitation.client?.name || "Client"}</small></div><h3>{invitation.project.title}</h3><p>{invitation.note}</p><div className="skill-list">{(invitation.project.requiredSkills || []).map(item => <span className="skill-chip" key={item}>{item}</span>)}</div><div className="invitation-actions"><strong>{money(invitation.project.budget)} budget</strong><button className="button button-outline" onClick={() => declineInvitation(invitation._id)}>Decline</button><button className="button button-dark" onClick={() => { setSelected(invitation.project); prepareProposal(invitation.project); }}>View & propose ↗</button></div></article>)}</div>)}
+      {tab === "assigned" && (sectionError ? null : loading ? <p role="status">Loading assigned projects…</p> : assigned.length === 0 ? <div className="empty-state"><span>▦</span><h3>No assigned projects yet</h3><p>A project is assigned after both sides agree to the same offer version.</p></div> : <div className="simple-list">{assigned.map(project => <article key={project._id}><div className="project-initial">{project.title[0]}</div><div><strong>{project.title}</strong><small>{project.milestones?.filter(milestone => milestone.status === "completed").length || 0} of {project.milestones?.length || 0} milestones approved</small></div><span className={`status status-${project.status.toLowerCase().replaceAll(" ", "-")}`}>{project.status}</span><Link className="button button-outline" to={`/task-boards/${project._id}`}>Task board →</Link><Link className="button button-outline" to={`/milestones/${project._id}`}>View milestones ↗</Link></article>)}</div>)}
+      {tab === "applications" && (sectionError ? null : loading ? <p role="status">Loading applications…</p> : applications.length === 0 ? <div className="empty-state"><span>✦</span><h3>No applications yet</h3><p>Find an open project and send your first proposal.</p></div> : <div className="simple-list">{applications.map(application => <article className="application-thread" key={application._id}>
         <div className="project-initial">{application.project?.title?.[0] || "P"}</div>
         <div className="application-summary"><strong>{application.project?.title || "Project unavailable"}</strong><small>Sent {new Date(application.createdAt).toLocaleDateString()} · {application.proposal}</small><small>Proposed {application.proposedPrice == null ? "price not provided" : `${money(application.proposedPrice)} planned`} · {application.deliveryEstimateDays == null ? "delivery estimate not provided" : `${application.deliveryEstimateDays} days`}</small></div>
         <ApplicationStatus application={application} project={application.project} role="freelancer" userId={user?.id} />

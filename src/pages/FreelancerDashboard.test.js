@@ -13,6 +13,38 @@ jest.mock("../api", () => ({
 
 const publicJobs = projects => ({ projects, total: projects.length, page: 1, pageSize: 12, pages: 1 });
 
+test.each(["slow", "failed"])("applications remain usable when an unrelated dashboard request is %s", async failure => {
+  api.mockReset();
+  const pending = new Promise(() => {});
+  const application = { _id: "responsive-application", proposal: "Synthetic proposal", status: "PENDING", createdAt: "2026-10-28T00:00:00Z", project: { _id: "responsive-project", title: "Ready application", status: "Open" }, offers: [], currentOfferState: "NONE" };
+  api.mockImplementation(path => {
+    if (path.startsWith("/applications/mine")) return Promise.resolve([application]);
+    if (path.startsWith("/projects/all")) return pending;
+    if (path === "/invitations/mine") return failure === "failed" ? Promise.reject(new Error("Invitation service unavailable")) : pending;
+    return Promise.resolve([]);
+  });
+  render(<MemoryRouter initialEntries={["/freelancer-dashboard?view=applications"]}><FreelancerDashboard /></MemoryRouter>);
+  expect(await screen.findByRole("button", { name: "Edit proposal" })).toBeEnabled();
+  expect(screen.getByText("Ready application")).toBeInTheDocument();
+  expect(screen.queryByText("No applications yet")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("tab", { name: /My projects/ }));
+  fireEvent.click(screen.getByRole("tab", { name: /My applications/ }));
+  expect(screen.getByText("Ready application")).toBeInTheDocument();
+  expect(api.mock.calls.filter(([request]) => request.startsWith("/applications/mine"))).toHaveLength(1);
+});
+
+test("an application request failure offers retry instead of claiming there are no applications", async () => {
+  api.mockReset();
+  let failed = true;
+  api.mockImplementation(path => path.startsWith("/applications/mine") && failed ? Promise.reject(new Error("Applications unavailable")) : Promise.resolve([]));
+  render(<MemoryRouter initialEntries={["/freelancer-dashboard?view=applications"]}><FreelancerDashboard /></MemoryRouter>);
+  expect(await screen.findByRole("alert")).toHaveTextContent("Applications unavailable");
+  expect(screen.queryByText("No applications yet")).not.toBeInTheDocument();
+  failed = false;
+  fireEvent.click(screen.getByRole("button", { name: "Retry this view" }));
+  expect(await screen.findByText("No applications yet")).toBeInTheDocument();
+});
+
 test("proposal is sent with the required message", async () => {
   api.mockImplementation(path => {
     if (path.split("?")[0] === "/projects/all") return Promise.resolve([{ _id: "project-123", title: "Brand design", budget: 5000, deadline: "2026-12-01", status: "Open", client: { name: "Client" }, milestones: [{ _id: "step-1" }] }]);
