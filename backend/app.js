@@ -14,6 +14,7 @@ if (process.env.TRUST_PROXY) {
   if (/^(true|\d+)$/i.test(process.env.TRUST_PROXY.trim())) throw new Error("TRUST_PROXY must list trusted proxy IP addresses or subnets, not a hop count or true");
   app.set("trust proxy", process.env.TRUST_PROXY.split(",").map(value => value.trim()).filter(Boolean));
 }
+app.use("/api", require("./observability").middleware);
 app.use(securityHeaders);
 app.use("/api", require("./cloudProxy").cloudProxy);
 app.use("/api", requestSecurity);

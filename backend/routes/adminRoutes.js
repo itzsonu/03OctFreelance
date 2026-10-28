@@ -11,6 +11,7 @@ const { pagination, listResponse } = require("../pagination");
 
 const router = express.Router();
 router.use(protect, allowRoles("admin"));
+router.get("/operations", (_req, res) => res.json(require("../observability").snapshot()));
 router.use(require("./supportRoutes").adminRouter);
 router.use(require("./storageRoutes"));
 router.use(require("./adminModerationRoutes"));

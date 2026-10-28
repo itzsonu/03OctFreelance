@@ -19,6 +19,6 @@ async function requireAiResponse(response, feature) {
   console.error('AI provider request failed', JSON.stringify({ provider: aiConfig().provider, feature, status: response.status, code }));
   const fallback = feature === 'matching' ? 'Regular fit scores remain available.' : 'Use the guided draft meanwhile.';
   const message = response.status === 429 ? `AI free quota is currently exhausted. Try later. ${fallback}` : response.status === 401 || response.status === 403 ? 'AI access is not ready. Check the server API key and project access.' : `AI service is unavailable right now. ${fallback}`;
-  const error = new Error(message); error.aiProviderFailure=true; error.status=response.status===429?429:502; throw error;
+  const error = new Error(message); error.aiProviderFailure=true; error.providerStatus=response.status; error.status=response.status===429?429:502; throw error;
 }
 module.exports.requireAiResponse = requireAiResponse;

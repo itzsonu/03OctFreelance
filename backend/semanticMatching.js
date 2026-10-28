@@ -37,6 +37,7 @@ function cosineSimilarity(left, right) {
 async function embedTexts(texts, fetchImpl = fetch) {
   const config = aiConfig();
   if (!config.apiKey) throw new Error("AI matching is not configured");
+  return require("./observability").observeAi(config.provider, "matching", async () => {
   if (config.provider === "gemini") {
     const response = await fetchImpl("https://generativelanguage.googleapis.com/v1beta/models/" + config.matchingModel + ":batchEmbedContents", {
       method: "POST", headers: { "x-goog-api-key": config.apiKey, "Content-Type": "application/json" }, signal: AbortSignal.timeout(20000),
@@ -53,7 +54,7 @@ async function embedTexts(texts, fetchImpl = fetch) {
     body: JSON.stringify({ model: MODEL, input: texts, encoding_format: "float" }),
     signal: AbortSignal.timeout(20000),
   });
-  if (!response.ok) throw new Error(`Embedding service returned ${response.status}`);
+  if (!response.ok) throw Object.assign(new Error(`Embedding service returned ${response.status}`), { providerStatus: response.status });
   const body = await response.json();
   if (!Array.isArray(body.data) || body.data.length !== texts.length) throw new Error("Embedding response is incomplete");
   const ordered = [...body.data].sort((a, b) => (a?.index ?? -1) - (b?.index ?? -1));
@@ -61,6 +62,7 @@ async function embedTexts(texts, fetchImpl = fetch) {
     throw new Error("Embedding response is invalid");
   }
   return ordered.map(item => item.embedding);
+  });
 }
 
 async function rankApplicants(project, applications, fetchImpl = fetch) {
