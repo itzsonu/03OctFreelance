@@ -1,12 +1,18 @@
 import { PolicyLinks } from "./ServicePage";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { currentUser, signOut } from "../api";
 import NotificationCenter from "./NotificationCenter";
+import { startPageWarmup, warmLink } from "../pageLoading";
 
 export default function Shell({ role, eyebrow, title, subtitle, action, children }) {
   const navigate = useNavigate();
   const location = useLocation();
+  useEffect(() => startPageWarmup(role, location.pathname), [role, location.pathname]);
+  const warmNavigation = event => {
+    const link = event.target.closest?.("a[href]");
+    if (link) warmLink(link.getAttribute("href"));
+  };
   const user = currentUser();
   const [signingOut, setSigningOut] = useState(false);
   const [logoutError, setLogoutError] = useState("");
@@ -20,7 +26,7 @@ export default function Shell({ role, eyebrow, title, subtitle, action, children
   const dashboardLabel = role === "client" ? "My projects" : role === "admin" ? "Overview" : "Find work";
   const workspaceLabel = role === "client" ? "Client workspace" : role === "admin" ? "Admin workspace" : "Freelancer workspace";
   return (
-    <div className="app-shell">
+    <div className="app-shell" onPointerOver={warmNavigation} onFocus={warmNavigation} onTouchStart={warmNavigation}>
       <a className="skip-link" href="#workspace-content">Skip to main content</a>
       <aside className="shell-sidebar">
         <Link className="brand" to="/"><span className="brand-mark">✦</span><span>Freelance<span className="brand-light">Chain</span></span></Link>

@@ -4,6 +4,7 @@ import "./ServicePages.css";
 import React, { lazy, Suspense } from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 
+import { loadPage } from "./pageLoading";
 import HomePage from "./pages/HomePage";
 import LoginRegister from "./pages/LoginRegister";
 import "./Administration.css";
@@ -30,26 +31,26 @@ import "./ColdStart.css";
 import "./TaskBoard.css";
 import "./ResponsivePolish.css";
 
-const Support = lazy(() => import("./pages/Support"));
-const ServicePolicies = lazy(() => import("./pages/ServicePolicies"));
-const AdminSupport = lazy(() => import("./pages/AdminSupport"));
-const AdminStorage = lazy(() => import("./pages/AdminStorage"));
-const AccountSettings = lazy(() => import("./pages/AccountSettings"));
-const VerifyEmailChange = lazy(() => import("./pages/VerifyEmailChange"));
-const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
-const ResetPassword = lazy(() => import("./pages/ResetPassword"));
-const ClientDashboard = lazy(() => import("./pages/ClientDashboard"));
-const FreelancerDashboard = lazy(() => import("./pages/FreelancerDashboard"));
-const TaskBoard = lazy(() => import("./pages/TaskBoard"));
-const MyTasks = lazy(() => import("./pages/MyTasks"));
-const MilestoneChain = lazy(() => import("./pages/MilestoneChain"));
-const WorkroomInbox = lazy(() => import("./pages/WorkroomInbox"));
-const FreelancerProfile = lazy(() => import("./pages/FreelancerProfile"));
-const TalentDirectory = lazy(() => import("./pages/TalentDirectory"));
-const PublicJob = lazy(() => import("./pages/PublicJob"));
-const TalentProfile = lazy(() => import("./pages/TalentProfile"));
-const AdminCases = lazy(() => import("./pages/AdminCases"));
-const AdminDashboard = lazy(() => import("./pages/AdminDashboard"));
+const Support = lazy(() => loadPage("Support"));
+const ServicePolicies = lazy(() => loadPage("ServicePolicies"));
+const AdminSupport = lazy(() => loadPage("AdminSupport"));
+const AdminStorage = lazy(() => loadPage("AdminStorage"));
+const AccountSettings = lazy(() => loadPage("AccountSettings"));
+const VerifyEmailChange = lazy(() => loadPage("VerifyEmailChange"));
+const ForgotPassword = lazy(() => loadPage("ForgotPassword"));
+const ResetPassword = lazy(() => loadPage("ResetPassword"));
+const ClientDashboard = lazy(() => loadPage("ClientDashboard"));
+const FreelancerDashboard = lazy(() => loadPage("FreelancerDashboard"));
+const TaskBoard = lazy(() => loadPage("TaskBoard"));
+const MyTasks = lazy(() => loadPage("MyTasks"));
+const MilestoneChain = lazy(() => loadPage("MilestoneChain"));
+const WorkroomInbox = lazy(() => loadPage("WorkroomInbox"));
+const FreelancerProfile = lazy(() => loadPage("FreelancerProfile"));
+const TalentDirectory = lazy(() => loadPage("TalentDirectory"));
+const PublicJob = lazy(() => loadPage("PublicJob"));
+const TalentProfile = lazy(() => loadPage("TalentProfile"));
+const AdminCases = lazy(() => loadPage("AdminCases"));
+const AdminDashboard = lazy(() => loadPage("AdminDashboard"));
 
 function App() {
   return (

@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 3
     steps:
-      - name: Measure three public requests without credentials or load generation
+      - name: Measure bounded public requests without credentials or load generation
         shell: bash
         run: |
           node <<'NODE'
