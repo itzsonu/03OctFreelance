@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
 import Shell from "../components/Shell";
+import BrowserTimings from "../components/BrowserTimings";
 import Pagination from "../components/Pagination";
 import usePagedList from "../usePagedList";
 import useDialogAccessibility from "../useDialogAccessibility";
@@ -41,6 +42,7 @@ export default function AdminDashboard() {
       <Pagination {...list} onPage={list.setPage} label={kind === "users" ? "accounts" : "listings"} />
     </section>
     {history && <section className="panel moderation-history"><div className="panel-heading"><h2>Moderation history: {history.name || history.title}</h2><button type="button" className="text-button" onClick={() => setHistory(null)}>Close history</button></div>{audit.error && <p className="message error" role="alert">{audit.error}</p>}{audit.loading ? <p>Loading history…</p> : audit.items.length ? <ol>{audit.items.map(entry => <li key={entry._id}><strong>{entry.action} · {entry.adminName}</strong><p>{entry.reason}</p><time>{new Date(entry.at).toLocaleString()}</time></li>)}</ol> : <p>No moderation decisions recorded.</p>}<Pagination {...audit} onPage={audit.setPage} label="decisions" /></section>}
+    <BrowserTimings />
     {target && <ModerationForm key={target._id} target={target} kind={kind} onClose={() => setTarget(null)} onComplete={message => { setTarget(null); setNotice(message); list.reload(); loadOverview(); if (history?._id === target._id) audit.reload(); }} />}
   </Shell>;
 }
