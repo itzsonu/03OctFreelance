@@ -10,7 +10,7 @@ test("login links to a recovery request with a generic confirmation", async () =
   api.mockResolvedValue({ message: "If an account exists for that email, a reset link will arrive shortly." });
   render(<App />);
   fireEvent.click(screen.getByRole("link", { name: /forgot password/i }));
-  expect(screen.getByRole("heading", { name: /forgot your password/i })).toBeInTheDocument();
+  expect(await screen.findByRole("heading", { name: /forgot your password/i })).toBeInTheDocument();
   fireEvent.change(screen.getByLabelText(/email address/i), { target: { value: "client@example.test" } });
   fireEvent.click(screen.getByRole("button", { name: /send reset link/i }));
   await waitFor(() => expect(api).toHaveBeenCalledWith("/auth/forgot-password", expect.objectContaining({ method: "POST" })));
@@ -33,7 +33,7 @@ test("reset form requires matching passwords and sends the link token", async ()
   window.history.pushState({}, "", "/reset-password?token=example-token");
   api.mockResolvedValue({ message: "Password updated" });
   render(<App />);
-  fireEvent.change(screen.getByLabelText(/^new password/i), { target: { value: "new-password-123" } });
+  fireEvent.change(await screen.findByLabelText(/^new password/i), { target: { value: "new-password-123" } });
   fireEvent.change(screen.getByLabelText(/confirm new password/i), { target: { value: "different-password" } });
   fireEvent.click(screen.getByRole("button", { name: /update password/i }));
   expect(screen.getByRole("alert")).toHaveTextContent(/do not match/i);
