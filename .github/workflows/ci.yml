@@ -12,31 +12,9 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  frontend:
+  checks:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    env:
-      CI: 'true'
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 24
-          cache: npm
-      - run: npm ci
-      - name: Frontend tests
-        run: npm test -- --watchAll=false --runInBand
-      - name: Hosting configuration checks
-        run: node --test deploy/hostingConfig.test.mjs
-      - name: Production build
-        env:
-          REACT_APP_API_URL: /api
-        run: npm run build
-  backend:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     services:
       mongodb:
         image: mongo:7.0
@@ -45,14 +23,11 @@ jobs:
           --health-cmd "mongosh --quiet --eval 'db.adminCommand({ping:1}).ok'"
           --health-interval 10s --health-timeout 5s --health-retries 10
     env:
-      NODE_ENV: test
+      CI: 'true'
       TEST_MONGO_BASE: mongodb://127.0.0.1:27017
       JWT_SECRET: ci-only-synthetic-csrf-value-not-a-production-secret
       EVENT_EMAILS_ENABLED: 'false'
       OBSERVABILITY_LOGS: 'false'
-    defaults:
-      run:
-        working-directory: backend
     steps:
       - uses: actions/checkout@v7
         with:
@@ -61,7 +36,21 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: backend/package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            backend/package-lock.json
       - run: npm ci
+      - run: npm --prefix backend ci
+      - name: Frontend tests
+        run: npm test -- --watchAll=false --runInBand
+      - name: Hosting configuration checks
+        run: node --test deploy/hostingConfig.test.mjs
+      - name: Production build required by same-origin integration tests
+        env:
+          REACT_APP_API_URL: /api
+        run: npm run build
       - name: Backend unit and isolated database checks
+        working-directory: backend
+        env:
+          NODE_ENV: test
         run: node --test --test-concurrency=1 *.test.js scripts/apiBenchmarkMetrics.test.js
