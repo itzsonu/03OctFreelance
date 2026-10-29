@@ -1,4 +1,4 @@
-const { saveAttachments } = require("../attachmentStorage");
+const { saveAttachments, discardAttachments } = require("../attachmentStorage");
 const express = require("express");
 const mongoose = require("mongoose");
 const Project = require("../models/Project");
@@ -143,10 +143,17 @@ router.post("/disputes/:disputeId/messages", parseFiles, async (req, res) => {
     if (!await participant(project, req.user)) return res.status(403).json({ message: "Access denied" });
     if (dispute.status !== "open") return res.status(409).json({ message: "This case is not open for updates" });
     const attachments = await saveAttachments(project, req.user, req.files);
-    dispute.history.push({ author: req.user._id, action: "message", text, attachments: attachments.map(item => item._id) });
-    await dispute.save();
-    project.activity.push({ type: "case_updated", actor: req.user._id, actorName: req.user.name || "Project participant", note: "A project case was updated" });
-    await project.save();
+    // Resolution can finish while files are prepared. Recheck at the actual write.
+    const updated = await Dispute.findOneAndUpdate(
+      { _id: dispute._id, status: "open" },
+      { $push: { history: { author: req.user._id, action: "message", text, attachments: attachments.map(item => item._id) } } },
+      { returnDocument: "after", runValidators: true }
+    );
+    if (!updated) {
+      await discardAttachments(attachments);
+      return res.status(409).json({ message: "This case is not open for updates. Refresh the case history." });
+    }
+    await Project.updateOne({ _id: project._id }, { $push: { activity: { type: "case_updated", actor: req.user._id, actorName: req.user.name || "Project participant", note: "A project case was updated" } }, $inc: { __v: 1 } });
     publishProject(project);
     const other = String(project.client) === String(req.user._id) ? project.freelancer : project.client;
     await notifyUser(other, "milestone", "Project case updated", `A participant added information to the case for ${project.title}.`, `/milestones/${project._id}`);

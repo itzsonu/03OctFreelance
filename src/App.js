@@ -9,6 +9,7 @@ import HomePage from "./pages/HomePage";
 import LoginRegister from "./pages/LoginRegister";
 import "./Administration.css";
 import ProtectedRoute from "./ProtectedRoute";
+import PageLoadBoundary from "./components/PageLoadBoundary";
 
 import "./App.css";
 import "./Phase3.css";
@@ -56,7 +57,7 @@ function App() {
   return (
     <Router>
       <ServiceConnectionNotice />
-      <SessionBoundary><Suspense fallback={<main className="empty-state" role="status" aria-live="polite">Loading your page…</main>}><Routes>
+      <SessionBoundary><PageLoadBoundary><Suspense fallback={<main className="empty-state" role="status" aria-live="polite">Loading your page…</main>}><Routes>
         <Route path="/terms" element={<ServicePolicies />} />
         <Route path="/privacy" element={<ServicePolicies privacy />} />
         <Route path="/support" element={<Support />} />
@@ -108,7 +109,7 @@ function App() {
           }
         />
         <Route path="*" element={<HomePage />} />
-      </Routes></Suspense></SessionBoundary>
+      </Routes></Suspense></PageLoadBoundary></SessionBoundary>
     </Router>
   );
 }

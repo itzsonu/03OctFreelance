@@ -15,6 +15,7 @@ export default function AdminCases() {
   const detailVersion = useRef(0);
   const [selectedId, setSelectedId] = useState(null);
   const [detail, setDetail] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [reason, setReason] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -40,9 +41,11 @@ export default function AdminCases() {
     const version = {}; detailVersion.current = version;
     setSelectedId(caseId);
     setDetail(null);
+    setReason(""); setNotice(""); setDetailLoading(true);
     setError("");
     try { const data = await api(`/admin/cases/${caseId}`); if (version === detailVersion.current) setDetail(data); }
     catch (err) { if (version === detailVersion.current) setError(err.message); }
+    finally { if (version === detailVersion.current) setDetailLoading(false); }
   }
 
   async function resolveCase(event) {
@@ -64,11 +67,11 @@ export default function AdminCases() {
     {error && <p className="message error" role="alert">{error}</p>}
     <section className="panel admin-case-panel">
       <div className="panel-heading"><div><p className="eyebrow">CASE QUEUE</p><h2>Cases</h2></div><label>Show<select disabled={busy} aria-label="Case status" value={statusFilter} onChange={event => { setStatusFilter(event.target.value); setPage(1); detailVersion.current = null; setSelectedId(null); setDetail(null); }}><option value="open">Open</option><option value="resolved">Resolved</option><option value="all">All</option></select></label></div>
-      {loading ? <p role="status">Loading cases…</p> : cases.length === 0 ? <p className="empty-state">No {statusFilter === "all" ? "" : `${statusFilter} `}cases.</p> : <div className="admin-case-list">{cases.map(item => <button className={`admin-case-row ${selectedId === item._id ? "selected" : ""}`} type="button" disabled={busy} key={item._id} onClick={() => openCase(item._id)}><span><strong>{item.project?.title || "Project unavailable"}</strong><small>{item.project?.client?.name || "Client"} · {item.project?.freelancer?.name || "Freelancer"} · {item.historyCount} history entries</small></span><span className={`status status-${item.status}`}>{item.status}</span></button>)}</div>}
+      {loading ? <p role="status">Loading cases…</p> : cases.length === 0 ? (error ? <button className="button button-outline" onClick={loadCases}>Retry case queue</button> : <p className="empty-state">No {statusFilter === "all" ? "" : `${statusFilter} `}cases.</p>) : <div className="admin-case-list">{cases.map(item => <button className={`admin-case-row ${selectedId === item._id ? "selected" : ""}`} type="button" disabled={busy} key={item._id} onClick={() => openCase(item._id)}><span><strong>{item.project?.title || "Project unavailable"}</strong><small>{item.project?.client?.name || "Client"} · {item.project?.freelancer?.name || "Freelancer"} · {item.historyCount} history entries</small></span><span className={`status status-${item.status}`}>{item.status}</span></button>)}</div>}
       <Pagination {...pageInfo} page={page} loading={loading || busy} onPage={value => { setPage(value); setSelectedId(null); setDetail(null); }} label="cases" />
     </section>
     {selectedId && <section className="panel admin-case-detail" aria-labelledby="admin-case-heading">
-      {!detail ? <p role="status">Loading case detail…</p> : <>
+      {!detail ? (detailLoading ? <p role="status">Loading case detail…</p> : <button className="button button-outline" onClick={() => openCase(selectedId)}>Retry case detail</button>) : <>
         <div className="panel-heading"><div><p className="eyebrow">CASE RECORD</p><h2 id="admin-case-heading">{detail.project?.title || "Project case"}</h2><p>{detail.project?.client?.name || "Client"} · {detail.project?.freelancer?.name || "Freelancer"}</p></div><span className={`status status-${detail.status}`}>{detail.status}</span></div>
         {detail.resolution && <section className="case-resolution"><h3>Resolution</h3><p>{detail.resolution.reason}</p><small>Recorded by {detail.resolution.admin?.name || "Admin"} · {dateTime(detail.resolution.resolvedAt)}</small></section>}
         <ol className="case-history">{detail.history.map(item => <li key={item._id}><div><strong>{item.author?.name || "Participant"} · {item.action === "opened" ? "Opened case" : item.action === "resolved" ? "Admin resolution" : "Update"}</strong><time>{dateTime(item.createdAt)}</time></div><p>{item.text}</p>{item.attachments?.length > 0 && <ul className="attachment-list">{item.attachments.map(attachment => <li key={attachment._id}><button type="button" className="attachment-download" onClick={async () => { setError(""); try { await downloadCaseAttachment(detail._id, { id: attachment._id, filename: attachment.filename }); } catch (err) { setError(err.message); } }}>↓ {attachment.filename} <small>{Math.ceil((attachment.size || 0) / 1024)} KB</small></button></li>)}</ul>}</li>)}</ol>

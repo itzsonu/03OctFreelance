@@ -23,6 +23,21 @@ beforeEach(() => {
   downloadCaseAttachment.mockReset();
 });
 
+test("a failed case detail can be retried and decisions do not carry into a different case", async()=>{
+ const second={...openCase,_id:"case-2",project:{title:"Project Beta"}};
+ let fail=true;api.mockImplementation(path=>{
+  if(path.includes("?"))return Promise.resolve([openCase,second]);
+  if(path.endsWith("case-2")&&fail){fail=false;return Promise.reject(new Error("Temporary detail error"));}
+  return Promise.resolve({...detail,_id:path.endsWith("case-2")?"case-2":"case-1"});
+ });
+ render(<AdminCases/>);
+ fireEvent.click(await screen.findByRole("button",{name:/Project Alpha/}));
+ fireEvent.change(await screen.findByLabelText("Decision reason"),{target:{value:"Reason belongs only to the first case."}});
+ fireEvent.click(screen.getByRole("button",{name:/Project Beta/}));
+ fireEvent.click(await screen.findByRole("button",{name:"Retry case detail"}));
+ await waitFor(()=>expect(screen.getByLabelText("Decision reason")).toHaveValue(""));
+});
+
 test("admin can read only case evidence and resolve with a recorded reason", async () => {
   let resolved = false;
   api.mockImplementation((path, options) => {

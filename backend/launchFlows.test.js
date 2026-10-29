@@ -10,6 +10,13 @@ const { requireAiResponse } = require("./aiProvider");
 process.env.JWT_SECRET = crypto.randomBytes(32).toString("hex");
 process.env.AI_PROVIDER = "gemini";
 delete process.env.GEMINI_API_KEY;
+const attachmentStorage = require("./attachmentStorage");
+const saveAttachments = attachmentStorage.saveAttachments;
+let beforeCaseUpload;
+attachmentStorage.saveAttachments = async (...args) => {
+  if (beforeCaseUpload) { const run = beforeCaseUpload; beforeCaseUpload = null; await run(); }
+  return saveAttachments(...args);
+};
 const app = require("./app");
 const User = require("./models/User");
 const Project = require("./models/Project");
@@ -70,7 +77,7 @@ test("revision, withdrawn/declined offers and participant authorization against 
     server=app.listen(0,"127.0.0.1"); await new Promise(r=>server.once("listening",r));
     const base="http://127.0.0.1:"+server.address().port+"/api";
     const people={};
-    for(const [name,role] of [["client","client"],["stranger","client"],["worker","freelancer"],["other","freelancer"]]) {
+    for(const [name,role] of [["client","client"],["stranger","client"],["worker","freelancer"],["other","freelancer"],["admin","admin"]]) {
       const user=await User.create({name,email:name+"@example.test",password:"test-only-hash",role});
       people[name]={id:user._id,auth:await testSession(user)};
     }
@@ -129,7 +136,28 @@ test("revision, withdrawn/declined offers and participant authorization against 
       assert.equal(reloaded.milestones[0].submissions[0].work,"Synthetic first draft");
       assert.equal(reloaded.milestones[0].submissions[1].work,"Synthetic revised draft with example");
     });
+    await t.test("case evidence, authorization and resolution stay consistent during competing writes",async()=>{
+      const Dispute=require("./models/Dispute");await Dispute.init();
+      const p=await create();
+      await Project.updateOne({_id:p._id},{$set:{freelancer:people.worker.id,status:"In Progress"}});
+      const root="/workrooms/projects/"+p._id+"/disputes";
+      const opened=await request("POST",root,"client",{reason:"Synthetic case: review the agreed delivery scope."},201);
+      await request("POST",root,"worker",{reason:"Duplicate open case must be rejected."},409);
+      await request("GET",root,"stranger",null,403);
+      await request("GET","/admin/cases/"+opened._id,"worker",null,403);
+      await request("POST","/workrooms/disputes/"+opened._id+"/messages","worker",{text:"Synthetic participant evidence before the decision."});
+      const before=await Project.findById(p._id).lean();
+      beforeCaseUpload=()=>request("POST","/admin/cases/"+opened._id+"/resolve","admin",{reason:"Synthetic decision: scope reviewed; project terms remain unchanged."});
+      await request("POST","/workrooms/disputes/"+opened._id+"/messages","worker",{text:"Late update must not follow the final decision."},409);
+      const rows=await request("GET",root,"worker");
+      assert.equal(rows[0].status,"resolved");assert.equal(rows[0].history.length,3);assert.equal(rows[0].history.at(-1).action,"resolved");
+      assert.equal(rows[0].resolution.admin.name,"admin");
+      await request("POST","/admin/cases/"+opened._id+"/resolve","admin",{reason:"A duplicate decision must be rejected."},409);
+      const after=await Project.findById(p._id).lean();
+      assert.deepEqual(after.milestones,before.milestones);assert.equal(after.status,before.status);
+    });
   } finally {
+    beforeCaseUpload=null;
     if(server)await new Promise(r=>server.close(r));
     if(mongoose.connection.readyState===1 && mongoose.connection.name===db)await mongoose.connection.dropDatabase();
     await mongoose.disconnect();

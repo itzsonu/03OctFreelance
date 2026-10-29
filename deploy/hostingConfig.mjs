@@ -31,7 +31,8 @@ export function createHostingConfig(env, routes, deploymentEnv) {
         "x-vercel-enable-rewrite-caching": "0",
       } },
       { handle: "filesystem" },
-      { src: "^/((?!api(?:/|$)).*)$", dest: "/index.html" },
+      // Missing JavaScript must be a real 404, never the SPA HTML shell.
+      { src: "^/((?!(?:api|static)(?:/|$)).*)$", dest: "/index.html", headers: { "Cache-Control": "public, max-age=0, must-revalidate" } },
     ],
   };
 }

@@ -32,6 +32,8 @@ test("cloud config compiles as one route format and forwards API requests privat
   assert.equal(spa.dest, "/index.html");
   assert.match("/freelancer-dashboard", new RegExp(spa.src));
   assert.doesNotMatch("/api/missing", new RegExp(spa.src));
+  assert.doesNotMatch("/static/js/missing.chunk.js", new RegExp(spa.src));
+  assert.equal(spa.headers["Cache-Control"], "public, max-age=0, must-revalidate");
   assert.equal(config.routes[0].headers["X-Frame-Options"], "DENY");
   assert.equal(config.routes[0].continue, true);
   assert.equal(config.routes[0].headers["Referrer-Policy"], "no-referrer");
