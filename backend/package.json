@@ -11,6 +11,7 @@
     "eval:matching": "node matchingEvaluation.js",
     "ai:check": "node scripts/checkAi.js",
     "eval:research": "node researchEvaluation.js",
+    "review:study": "node reviewWorkflow.js",
     "test:lifecycle": "node projectLifecycle.test.js",
     "test:changes": "node accountAndChanges.test.js",
     "test:drafts-emails": "node --test draftsAndEmails.test.js resetMail.test.js",

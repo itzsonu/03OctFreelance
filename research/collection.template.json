@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "provenance": {
+    "sourceType": "independent_consented",
+    "datasetToken": "dataset-replace01",
+    "consented": false,
+    "anonymized": false,
+    "externalProcessingConsented": false
+  },
+  "cases": []
+}

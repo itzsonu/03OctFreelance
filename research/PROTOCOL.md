@@ -51,7 +51,7 @@ npm run eval:research -- --dataset path/to/holdout.json --development path/to/de
 
 The first command reports readiness and six synthetic trust invariants; it evaluates zero real cases. The second checks the fictional one-case format and reports insufficient data for percentages. The third evaluates the supplied data and writes an aggregate JSON report. Existing reports and input datasets are not overwritten. No MongoDB connection, user export, email or external request occurs by default.
 
-AI comparison is optional and remains unverified without a real key. With separately recorded external-processing permission, a configured key and an explicit case budget:
+Live Gemini milestone planning and applicant comparison were demonstrated earlier in this project. That integration evidence does not establish real-world accuracy: an independently labelled holdout comparison remains pending. For the optional research run, use separately recorded external-processing permission, the configured provider's private key and an explicit case budget:
 
 ```text
 npm run eval:research -- --dataset path/to/holdout.json --ai --ai-max-cases 10 --report path/to/new-ai-report.json

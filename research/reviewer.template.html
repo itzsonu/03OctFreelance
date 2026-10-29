@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; img-src 'none'; base-uri 'none'; form-action 'none'">
+<title>FreelanceChain — independent relevance review</title>
+<style>
+:root{font-family:Arial,sans-serif;color:#292724;background:#f6f2eb}body{max-width:980px;margin:auto;padding:26px}h1{font-size:28px}h2{font-size:22px}.card{background:white;border:1px solid #d9d0c6;border-radius:12px;padding:22px;margin:18px 0}.muted{color:#645f58;line-height:1.6}.notice{border-left:4px solid #a65f37;padding:12px;background:#fff}p{white-space:pre-wrap;line-height:1.6}label{display:block;margin:12px 0 6px;font-weight:bold}select,textarea,button{font:inherit;padding:10px;border:1px solid #cbbfb2;border-radius:6px}select,textarea{width:100%;box-sizing:border-box}textarea{min-height:90px}button{background:#292724;color:white;cursor:pointer;margin:4px 8px 4px 0}button:disabled{opacity:.4;cursor:default}#message{color:#8f3e22;font-weight:bold}code{word-break:break-all}
+</style></head><body>
+<h1>Independent relevance review</h1>
+<p class="notice" id="notice"></p>
+<p class="muted">Review independently. Do not consult model scores, platform approval history or another reviewer's answers. 1 = sufficient documented fit for a shortlist; 0 = material skill/scope mismatch; uncertain = insufficient evidence. Give a short reason grounded in the visible work requirements. Do not enter names, contact details or model scores.</p>
+<div class="card"><strong id="progress"></strong><p id="identity" class="muted"></p><button id="previous">Previous project</button><button id="next">Next project</button><button id="download">Download completed labels CSV</button><p id="message" role="status" aria-live="polite"></p></div>
+<main id="case"></main>
+<p class="muted">This file works offline and sends no data to a server. Your answers remain in memory until downloaded; closing this tab loses unsaved answers. Share only your completed CSV with the coordinator. The coordinator must resolve disagreements and uncertainty before evaluation. These labels measure brief/profile relevance, not hiring eligibility or delivery success.</p>
+<script>
+"use strict";
+const DATA = __BLIND_DATA_JSON__;
+const answers = Object.create(null); let current = 0;
+const pair = (c, a) => c + "/" + a;
+function element(tag, text, className) { const node=document.createElement(tag); if(text!==undefined)node.textContent=text;if(className)node.className=className;return node; }
+function updateProgress() {
+ const total=DATA.cases.reduce((n,c)=>n+c.candidates.length,0);
+ const done=Object.values(answers).filter(a=>a.relevance&&a.reason.trim()).length;
+ document.getElementById("progress").textContent="Project "+(current+1)+" / "+DATA.cases.length+" · "+done+" / "+total+" candidates completed";
+}
+function render() {
+ const item=DATA.cases[current], root=document.getElementById("case"); root.replaceChildren();
+ const brief=element("section",undefined,"card");brief.append(element("h2",item.project.title),element("p",item.project.description),element("p","Required skills: "+item.project.requiredSkills.join(", ")));root.append(brief);
+ item.candidates.forEach((candidate,index)=>{
+  const id=pair(item.caseId,candidate.id), answer=answers[id]||(answers[id]={relevance:"",reason:""}), card=element("section",undefined,"card");
+  card.append(element("h2","Candidate "+(index+1)),element("code",candidate.id),element("p",candidate.profile.headline||""),element("p",candidate.profile.bio||""),element("p","Skills: "+candidate.profile.skills.join(", ")),element("p","Self-reported experience: "+candidate.profile.experienceYears+" years"),element("h3","Proposal"),element("p",candidate.proposal));
+  const label=element("label","Relevance");label.htmlFor="choice-"+index;const select=element("select");select.id=label.htmlFor;
+  [["","Choose"],["1","1 — Relevant"],["0","0 — Not relevant"],["uncertain","Uncertain — Insufficient evidence"]].forEach(([value,text])=>{const option=element("option",text);option.value=value;select.append(option);});select.value=answer.relevance;select.addEventListener("change",()=>{answer.relevance=select.value;updateProgress();});
+  const reasonLabel=element("label","Reason grounded in the brief/profile/proposal");reasonLabel.htmlFor="reason-"+index;const reason=element("textarea");reason.id=reasonLabel.htmlFor;reason.maxLength=1000;reason.value=answer.reason;reason.addEventListener("input",()=>{answer.reason=reason.value;updateProgress();});
+  card.append(label,select,reasonLabel,reason);root.append(card);
+ });
+ document.getElementById("previous").disabled=current===0;document.getElementById("next").disabled=current===DATA.cases.length-1;updateProgress();
+}
+function csvCell(value){let text=String(value);if(/^\s*[=+@-]/.test(text))text="'"+text;return '"'+text.replace(/"/g,'""')+'"';}
+document.getElementById("previous").addEventListener("click",()=>{if(current>0){current--;render();}});
+document.getElementById("next").addEventListener("click",()=>{if(current<DATA.cases.length-1){current++;render();}});
+document.getElementById("download").addEventListener("click",()=>{
+ const rows=[["caseId","candidateId","reviewerToken","relevance","reason","rubricVersion"]];
+ for(const item of DATA.cases)for(const candidate of item.candidates){
+  const answer=answers[pair(item.caseId,candidate.id)];
+  if(!answer||!answer.relevance||!answer.reason.trim()){document.getElementById("message").textContent="Complete a relevance choice and reason for every candidate before downloading.";return;}
+  if(/@|\bhttps?:\/\/|\bwww\./i.test(answer.reason)){document.getElementById("message").textContent="Remove personal identifiers and links from review reasons.";return;}
+  rows.push([item.caseId,candidate.id,DATA.reviewerToken,answer.relevance,answer.reason,"relevance-v1"]);
+ }
+ const file=new Blob([rows.map(row=>row.map(csvCell).join(",")).join("\r\n")+"\r\n"],{type:"text/csv;charset=utf-8"});
+ const url=URL.createObjectURL(file), anchor=document.createElement("a");anchor.href=url;anchor.download=DATA.reviewerToken+"-labels.csv";document.body.append(anchor);anchor.click();anchor.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+ document.getElementById("message").textContent="CSV downloaded. Keep your original labels unchanged and return this file privately to the coordinator.";
+});
+document.getElementById("identity").textContent="Anonymous reviewer: "+DATA.reviewerToken+" · Rubric relevance-v1";
+document.getElementById("notice").textContent=DATA.evidenceType==="synthetic"?"SYNTHETIC PRACTICE ONLY. These fictional cases do not measure real-world matching accuracy.":"Anonymized research cases. Source consent and reviewer independence must be checked by the coordinator.";
+render();
+</script></body></html>
