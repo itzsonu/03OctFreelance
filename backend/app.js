@@ -16,6 +16,8 @@ if (process.env.TRUST_PROXY) {
 }
 app.use("/api", require("./observability").middleware);
 app.use(securityHeaders);
+// Dedicated server-to-server OIDC authorization; accepts no browser session cookies.
+app.use("/api/backup-cloud/v1", require("./cloudBackup").createRouter());
 app.use("/api", require("./cloudProxy").cloudProxy);
 app.use("/api", requestSecurity);
 app.use(express.json({ limit: "100kb" }));
