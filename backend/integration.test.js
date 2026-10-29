@@ -104,7 +104,9 @@ test("real client-to-freelancer workflow with revisions, dependencies and trust"
     assert.equal(blockedOrigin.status, 403);
     const spaRoute = await fetch(`${baseUrl}/client-dashboard`, { headers: { Accept: "text/html" } });
     assert.equal(spaRoute.status, 200);
-    assert.match(await spaRoute.text(), /<div id="root"><\/div>/);
+    const shell = await spaRoute.text();
+    assert.match(shell, /<div id="root">/);
+    assert.match(shell, /<script[^>]+src="\/static\/js\/main\.[^"]+\.js"/);
 
     const password = "testing-password-123";
     await request("POST", "/api/auth/register", null, { name: { unexpected: true }, email: "bad@example.test", password, role: "client" }, 400);
@@ -717,3 +719,4 @@ test("real client-to-freelancer workflow with revisions, dependencies and trust"
     await fs.rm(uploadDirectory, { recursive: true, force: true });
   }
 });
+
